@@ -1,35 +1,25 @@
 package com.moulberry.flashback.packet;
 
 import com.moulberry.flashback.Flashback;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.network.protocol.game.GameProtocols;
-import net.minecraft.world.item.ItemStack;
+import net.fabricmc.fabric.api.networking.v1.FabricPacket;
+import net.fabricmc.fabric.api.networking.v1.PacketType;
+import net.minecraft.network.FriendlyByteBuf;
 
-public record FlashbackRawCustomPayload(byte[] packetBytes, boolean configPhase) implements CustomPacketPayload {
-    public static final Type<FlashbackRawCustomPayload> TYPE = new Type<>(Flashback.createResourceLocation("raw_custom_payload"));
+public record FlashbackRawCustomPayload(byte[] packetBytes, boolean configPhase) implements FabricPacket {
+    public static final PacketType<FlashbackRawCustomPayload> TYPE = PacketType.create(Flashback.createResourceLocation("raw_custom_payload"), FlashbackRawCustomPayload::new);
 
-    public static final StreamCodec<RegistryFriendlyByteBuf, FlashbackRawCustomPayload> STREAM_CODEC = new ProcessPacketRawStreamCodec();
+    public FlashbackRawCustomPayload(FriendlyByteBuf friendlyByteBuf) {
+        this(friendlyByteBuf.readByteArray(), friendlyByteBuf.readBoolean());
+    }
 
     @Override
-    public Type<? extends CustomPacketPayload> type() {
+    public void write(FriendlyByteBuf friendlyByteBuf) {
+        friendlyByteBuf.writeByteArray(this.packetBytes());
+        friendlyByteBuf.writeBoolean(this.configPhase());
+    }
+
+    @Override
+    public PacketType<?> getType() {
         return TYPE;
     }
-
-    public static class ProcessPacketRawStreamCodec implements StreamCodec<RegistryFriendlyByteBuf, FlashbackRawCustomPayload> {
-        @Override
-        public FlashbackRawCustomPayload decode(RegistryFriendlyByteBuf friendlyByteBuf) {
-            byte[] packetBytes = friendlyByteBuf.readByteArray();
-            boolean configPhase = friendlyByteBuf.readBoolean();
-            return new FlashbackRawCustomPayload(packetBytes, configPhase);
-        }
-
-        @Override
-        public void encode(RegistryFriendlyByteBuf friendlyByteBuf, FlashbackRawCustomPayload packet) {
-            friendlyByteBuf.writeByteArray(packet.packetBytes());
-            friendlyByteBuf.writeBoolean(packet.configPhase());
-        }
-    }
-
 }

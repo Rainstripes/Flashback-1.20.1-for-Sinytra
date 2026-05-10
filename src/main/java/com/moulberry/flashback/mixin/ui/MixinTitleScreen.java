@@ -84,8 +84,8 @@ public class MixinTitleScreen extends Screen {
                     continue;
                 }
                 if (renderable instanceof AbstractWidget otherWidget) {
-                    if (x < otherWidget.getRight() && x+width > otherWidget.getX() &&
-                        y < otherWidget.getBottom() && y+height > otherWidget.getY()) {
+                    if (x < otherWidget.getRectangle().right() && x+width > otherWidget.getX() &&
+                        y < otherWidget.getRectangle().bottom() && y+height > otherWidget.getY()) {
                         overlapsWithExistingButton = true;
                         break;
                     }
@@ -109,7 +109,7 @@ public class MixinTitleScreen extends Screen {
                 }
 
                 int size = widget.getHeight();
-                int x = widget.getRight() + 4 + size * offsetX;
+                int x = widget.getRectangle().right() + 4 + size * offsetX;
                 int y = widget.getY();
 
                 boolean overlapsWithExistingButton = false;
@@ -120,8 +120,8 @@ public class MixinTitleScreen extends Screen {
                         continue;
                     }
                     if (renderable instanceof AbstractWidget otherWidget) {
-                        if (x < otherWidget.getRight() && x+size > otherWidget.getX() &&
-                            y < otherWidget.getBottom() && y+size > otherWidget.getY()) {
+                        if (x < otherWidget.getRectangle().right() && x+size > otherWidget.getX() &&
+                            y < otherWidget.getRectangle().bottom() && y+size > otherWidget.getY()) {
                             overlapsWithExistingButton = true;
                             break;
                         }

@@ -1,8 +1,6 @@
 package com.moulberry.flashback.mixin;
 
 import com.mojang.authlib.GameProfile;
-import com.mojang.authlib.properties.Property;
-import com.mojang.authlib.yggdrasil.ProfileResult;
 import com.moulberry.flashback.FilePlayerSkin;
 import com.moulberry.flashback.Flashback;
 import com.moulberry.flashback.state.EditorState;
@@ -11,8 +9,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.resources.PlayerSkin;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
@@ -59,13 +57,13 @@ public abstract class MixinAbstractClientPlayer extends Player {
     @Unique
     private PlayerInfo skinOverridePlayerInfo = null;
 
-    @Inject(method = "getSkin", at = @At("HEAD"), cancellable = true, require = 0)
-    public void getSkin(CallbackInfoReturnable<PlayerSkin> cir) {
+    @Inject(method = "getSkinTextureLocation", at = @At("HEAD"), cancellable = true, require = 0)
+    public void getSkinTextureLocation(CallbackInfoReturnable<ResourceLocation> cir) {
         EditorState editorState = EditorStateManager.getCurrent();
         if (editorState != null) {
             FilePlayerSkin filePlayerSkin = editorState.skinOverrideFromFile.get(this.getUUID());
             if (filePlayerSkin != null) {
-                cir.setReturnValue(filePlayerSkin.getSkin());
+                cir.setReturnValue(filePlayerSkin.getTextureLocation());
                 return;
             }
 
@@ -74,7 +72,27 @@ public abstract class MixinAbstractClientPlayer extends Player {
                 if (skinOverridePlayerInfo == null || skinOverridePlayerInfo.getProfile() != skinOverride) {
                     skinOverridePlayerInfo = new PlayerInfo(skinOverride, false);
                 }
-                cir.setReturnValue(skinOverridePlayerInfo.getSkin());
+                cir.setReturnValue(skinOverridePlayerInfo.getSkinLocation());
+            }
+        }
+    }
+
+    @Inject(method = "getModelName", at = @At("HEAD"), cancellable = true, require = 0)
+    public void getModelName(CallbackInfoReturnable<String> cir) {
+        EditorState editorState = EditorStateManager.getCurrent();
+        if (editorState != null) {
+            FilePlayerSkin filePlayerSkin = editorState.skinOverrideFromFile.get(this.getUUID());
+            if (filePlayerSkin != null) {
+                cir.setReturnValue(filePlayerSkin.getModelName());
+                return;
+            }
+
+            GameProfile skinOverride = editorState.skinOverride.get(this.uuid);
+            if (skinOverride != null) {
+                if (skinOverridePlayerInfo == null || skinOverridePlayerInfo.getProfile() != skinOverride) {
+                    skinOverridePlayerInfo = new PlayerInfo(skinOverride, false);
+                }
+                cir.setReturnValue(skinOverridePlayerInfo.getModelName());
             }
         }
     }

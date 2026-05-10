@@ -10,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.StringWidget;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.layouts.FrameLayout;
 import net.minecraft.client.gui.layouts.GridLayout;
 import net.minecraft.client.gui.screens.AlertScreen;
@@ -47,7 +48,7 @@ public class EditReplayScreen extends Screen {
     }
 
     @Override
-    protected void setInitialFocus() {
+    protected void setInitialFocus(GuiEventListener guiEventListener) {
     }
 
     @Override

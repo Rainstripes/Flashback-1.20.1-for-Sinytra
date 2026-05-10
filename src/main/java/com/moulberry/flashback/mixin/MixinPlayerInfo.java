@@ -13,12 +13,13 @@ import java.util.UUID;
 @Mixin(PlayerInfo.class)
 public class MixinPlayerInfo {
 
-    @WrapOperation(method = "createSkinLookup", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;isLocalPlayer(Ljava/util/UUID;)Z"))
-    private static boolean createSkinLookup_isLocalPlayer(Minecraft instance, UUID uuid, Operation<Boolean> original) {
-        if (Flashback.isInReplay()) {
-            return true;
-        }
-        return original.call(instance, uuid);
-    }
+    // TODO: fix
+//    @WrapOperation(method = "createSkinLookup", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;isLocalPlayer(Ljava/util/UUID;)Z"))
+//    private static boolean createSkinLookup_isLocalPlayer(Minecraft instance, UUID uuid, Operation<Boolean> original) {
+//        if (Flashback.isInReplay()) {
+//            return true;
+//        }
+//        return original.call(instance, uuid);
+//    }
 
 }

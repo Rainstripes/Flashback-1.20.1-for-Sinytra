@@ -125,10 +125,10 @@ public class ExportDoneWindow {
                     }
 
                     if (ImGui.imageButton("ExportThumbnail", id, new ImVec2(width, height))) {
-                        Util.getPlatform().openPath(output);
+                        Util.getPlatform().openFile(output.toFile());
                     }
                 } else if (ImGui.button(I18n.get("flashback.export_done.missing_thumbnail"), DESIRED_W+padding.x*2, DESIRED_H+padding.y*2)) {
-                    Util.getPlatform().openPath(output);
+                    Util.getPlatform().openFile(output.toFile());
                 }
 
                 ImGui.sameLine();
@@ -153,14 +153,14 @@ public class ExportDoneWindow {
 
                 if (entry.outputIsFolder) {
                     if (ImGui.button(I18n.get("flashback.open_folder"))) {
-                        Util.getPlatform().openPath(output);
+                        Util.getPlatform().openFile(output.toFile());
                     }
                 } else {
                     if (ImGui.button(I18n.get("flashback.open_file"))) {
-                        Util.getPlatform().openPath(output);
+                        Util.getPlatform().openFile(output.toFile());
                     }
                     if (ImGui.button(I18n.get("flashback.open_folder"))) {
-                        Util.getPlatform().openPath(output.getParent());
+                        Util.getPlatform().openFile(output.getParent().toFile());
                     }
                 }
 

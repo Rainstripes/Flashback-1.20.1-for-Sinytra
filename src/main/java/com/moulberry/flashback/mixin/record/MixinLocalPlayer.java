@@ -23,13 +23,7 @@ public class MixinLocalPlayer {
             float volume, float pitch, boolean global, Operation<Void> original) {
         if (Flashback.RECORDER != null && !Flashback.RECORDER.isPaused()) {
 
-            Optional<Holder.Reference<SoundEvent>> builtinSoundEvent = BuiltInRegistries.SOUND_EVENT.getHolder(soundEvent.getLocation());
-            Holder<SoundEvent> holder;
-            if (builtinSoundEvent.isEmpty()) {
-                holder = Holder.direct(soundEvent);
-            } else {
-                holder = builtinSoundEvent.get();
-            }
+            Holder<SoundEvent> holder = BuiltInRegistries.SOUND_EVENT.wrapAsHolder(soundEvent);
 
             Flashback.RECORDER.writeSound(holder, soundSource, x, y, z, volume, pitch,
                 ThreadLocalRandom.current().nextLong());

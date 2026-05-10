@@ -1,18 +1,15 @@
 package com.moulberry.flashback.playback;
 
 import com.moulberry.flashback.Flashback;
+import com.moulberry.flashback.PacketHelper;
 import com.moulberry.flashback.SneakyThrow;
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
-import net.minecraft.core.RegistryAccess;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
 import org.jetbrains.annotations.Nullable;
 
@@ -42,7 +39,7 @@ public class ReplayChunkCache {
     }
 
     @Nullable
-    public ClientboundLevelChunkWithLightPacket getOrLoad(int index, RegistryAccess registryAccess, StreamCodec<ByteBuf, Packet<? super ClientGamePacketListener>> gamePacketCodec) {
+    public ClientboundLevelChunkWithLightPacket getOrLoad(int index) {
         int cacheIndex = index / CHUNK_CACHE_SIZE;
         SoftReference<List<ClientboundLevelChunkWithLightPacket>> packetListReference = this.levelChunkCachedPackets.get(cacheIndex);
         List<ClientboundLevelChunkWithLightPacket> packets = packetListReference == null ? null : packetListReference.get();
@@ -55,7 +52,7 @@ public class ReplayChunkCache {
             Path levelChunkCachePath = this.playbackFileSystem.getPath(pathString);
             if (Files.exists(levelChunkCachePath)) {
                 try {
-                    packets = loadLevelChunkCache(levelChunkCachePath, registryAccess, gamePacketCodec);
+                    packets = loadLevelChunkCache(levelChunkCachePath);
                     this.levelChunkCachedPackets.put(cacheIndex, new SoftReference<>(packets));
                     Flashback.LOGGER.info("Loaded {} with {} entries", pathString, packets.size());
                 } catch (IOException e) {
@@ -72,7 +69,7 @@ public class ReplayChunkCache {
         return indexInCache < packets.size() ? packets.get(indexInCache) : null;
     }
 
-    private static List<ClientboundLevelChunkWithLightPacket> loadLevelChunkCache(Path levelChunkCachePath, RegistryAccess registryAccess, StreamCodec<ByteBuf, Packet<? super ClientGamePacketListener>> gamePacketCodec) throws IOException {
+    private static List<ClientboundLevelChunkWithLightPacket> loadLevelChunkCache(Path levelChunkCachePath) throws IOException {
         List<ClientboundLevelChunkWithLightPacket> packets = new ArrayList<>();
 
         try (InputStream is = Files.newInputStream(levelChunkCachePath)) {
@@ -94,10 +91,10 @@ public class ReplayChunkCache {
                     break;
                 }
 
-                RegistryFriendlyByteBuf registryFriendlyByteBuf = new RegistryFriendlyByteBuf(Unpooled.wrappedBuffer(chunk), registryAccess);
+                FriendlyByteBuf friendlyByteBuf = new FriendlyByteBuf(Unpooled.wrappedBuffer(chunk));
 
                 try {
-                    Packet<?> packet = gamePacketCodec.decode(registryFriendlyByteBuf);
+                    Packet<?> packet = PacketHelper.readClientboundPacket(friendlyByteBuf);
                     if (packet instanceof ClientboundLevelChunkWithLightPacket levelChunkWithLightPacket) {
                         packets.add(levelChunkWithLightPacket);
                     } else {

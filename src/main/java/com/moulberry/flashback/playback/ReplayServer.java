@@ -9,7 +9,6 @@ import com.moulberry.flashback.configuration.FlashbackConfigV1;
 import com.moulberry.flashback.ext.ConnectionExt;
 import com.moulberry.flashback.ext.LevelChunkExt;
 import com.moulberry.flashback.TempFolderProvider;
-import com.moulberry.flashback.ext.ServerTickRateManagerExt;
 import com.moulberry.flashback.keyframe.Keyframe;
 import com.moulberry.flashback.keyframe.handler.ReplayServerKeyframeHandler;
 import com.moulberry.flashback.keyframe.impl.BlockOverrideKeyframe;
@@ -29,14 +28,13 @@ import com.moulberry.flashback.state.EditorScene;
 import com.moulberry.flashback.state.EditorState;
 import com.moulberry.flashback.state.EditorStateManager;
 import com.moulberry.flashback.ext.MinecraftExt;
-import com.moulberry.flashback.ext.ServerGamePacketListenerImplExt;
 import com.moulberry.flashback.io.ReplayReader;
 import com.moulberry.flashback.packet.FinishedServerTick;
 import com.moulberry.flashback.record.FlashbackChunkMeta;
 import com.moulberry.flashback.record.FlashbackMeta;
 import com.moulberry.flashback.record.Recorder;
 import com.moulberry.flashback.state.KeyframeTrack;
-import io.netty.buffer.ByteBuf;
+import com.moulberry.flashback.visuals.AccurateEntityPositionHandler;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.handler.codec.DecoderException;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
@@ -54,27 +52,19 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.Connection;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.common.*;
-import net.minecraft.network.protocol.configuration.ClientConfigurationPacketListener;
-import net.minecraft.network.protocol.configuration.ConfigurationProtocols;
 import net.minecraft.network.protocol.game.*;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.ServerTickRateManager;
 import net.minecraft.server.Services;
 import net.minecraft.server.WorldStem;
 import net.minecraft.server.level.ChunkMap;
-import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.TicketType;
 import net.minecraft.server.level.progress.ChunkProgressListenerFactory;
-import net.minecraft.server.network.CommonListenerCookie;
-import net.minecraft.server.network.ConfigurationTask;
 import net.minecraft.server.packs.repository.PackRepository;
 import net.minecraft.server.players.PlayerList;
 import net.minecraft.stats.ServerStatsCounter;
@@ -83,7 +73,6 @@ import net.minecraft.world.BossEvent;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.flag.FeatureFlagSet;
 import net.minecraft.world.food.FoodData;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
@@ -141,6 +130,9 @@ public class ReplayServer extends IntegratedServer {
     private boolean isFrozen = false;
     private int frozenDelay = -1;
 
+    private final TickRateManager tickRateManager = new TickRateManager(true);
+    private long nextTickTimeNanos = Util.getNanos();
+
     public volatile boolean failedToLoadRegistryDataWarning = false;
     public volatile boolean failedToSpawnPlayerWarning = false;
 
@@ -151,9 +143,6 @@ public class ReplayServer extends IntegratedServer {
     private final int totalTicks;
     public ResourceKey<Level> spawnLevel = null;
     private final ReplayGamePacketHandler gamePacketHandler;
-    private final ReplayConfigurationPacketHandler configurationPacketHandler;
-    private StreamCodec<ByteBuf, Packet<? super ClientGamePacketListener>> gamePacketCodec;
-    private final StreamCodec<ByteBuf, Packet<? super ClientConfigurationPacketListener>> configurationPacketCodec;
     private final List<ReplayPlayer> replayViewers = new ArrayList<>();
     public boolean followLocalPlayerNextTickIfWrongDimension = false;
     public boolean isProcessingSnapshot = false;
@@ -191,10 +180,6 @@ public class ReplayServer extends IntegratedServer {
         super(thread, minecraft, levelStorageAccess, packRepository, worldStem, services, chunkProgressListenerFactory);
         this.playbackUUID = playbackUUID;
         this.gamePacketHandler = new ReplayGamePacketHandler(this);
-        this.configurationPacketHandler = new ReplayConfigurationPacketHandler(this);
-
-        this.gamePacketCodec = GameProtocols.CLIENTBOUND_TEMPLATE.bind(RegistryFriendlyByteBuf.decorator(this.registryAccess())).codec();
-        this.configurationPacketCodec = ConfigurationProtocols.CLIENTBOUND.codec();
 
         try {
             this.playbackFileSystem = FileSystems.newFileSystem(path);
@@ -227,29 +212,6 @@ public class ReplayServer extends IntegratedServer {
         return this.metadata;
     }
 
-    public void updateRegistry(FeatureFlagSet featureFlagSet, List<Packet<? super ClientConfigurationPacketListener>> initialPackets,
-            List<ConfigurationTask> configurationTasks, @Nullable Collection<String> knownPackIds) {
-        this.worldData.setDataConfiguration(new WorldDataConfiguration(
-            this.worldData.getDataConfiguration().dataPacks(),
-            featureFlagSet
-        ));
-        this.reloadResources(knownPackIds != null ? knownPackIds : this.getPackRepository().getSelectedIds());
-
-        this.gamePacketCodec = GameProtocols.CLIENTBOUND_TEMPLATE.bind(RegistryFriendlyByteBuf.decorator(this.registryAccess())).codec();
-
-        if (this.currentReplayReader != null) {
-            this.currentReplayReader.changeRegistryAccess(this.registryAccess());
-        }
-
-        List<ServerPlayer> players = new ArrayList<>(this.getPlayerList().getPlayers());
-        for (ServerPlayer player : players) {
-            if (player instanceof ReplayPlayer) {
-                ((ServerGamePacketListenerImplExt)player.connection).flashback$switchToConfigWithTasks(initialPackets, configurationTasks);
-            }
-        }
-        this.replayViewers.clear();
-    }
-
     @Override
     public boolean initServer() {
         Entity.ENTITY_COUNTER.set(1000000);
@@ -257,7 +219,7 @@ public class ReplayServer extends IntegratedServer {
         AtomicInteger newPlayerIds = new AtomicInteger(REPLAY_VIEWER_IDS_START);
         this.setPlayerList(new PlayerList(this, this.registries(), this.playerDataStorage, 1) {
             @Override
-            public ServerPlayer getPlayerForLogin(GameProfile gameProfile, ClientInformation clientInformation) {
+            public ServerPlayer getPlayerForLogin(GameProfile gameProfile) {
                 ServerLevel level = ReplayServer.this.overworld();
                 if (spawnLevel != null) {
                     ServerLevel serverLevel = ReplayServer.this.getLevel(spawnLevel);
@@ -266,18 +228,18 @@ public class ReplayServer extends IntegratedServer {
                     }
                 }
 
-                ReplayPlayer player = new ReplayPlayer(ReplayServer.this, level, gameProfile, clientInformation);
+                ReplayPlayer player = new ReplayPlayer(ReplayServer.this, level, gameProfile);
                 player.setId(newPlayerIds.getAndDecrement());
                 player.followLocalPlayerNextTick = true;
                 return player;
             }
 
             @Override
-            public void placeNewPlayer(Connection connection, ServerPlayer serverPlayer, CommonListenerCookie commonListenerCookie) {
+            public void placeNewPlayer(Connection connection, ServerPlayer serverPlayer) {
                 if (Flashback.getConfig().internal.filterUnnecessaryPackets) {
                     ((ConnectionExt)connection).flashback$setFilterUnnecessaryPackets();
                 }
-                super.placeNewPlayer(connection, serverPlayer, commonListenerCookie);
+                super.placeNewPlayer(connection, serverPlayer);
             }
 
             @Override
@@ -355,14 +317,12 @@ public class ReplayServer extends IntegratedServer {
 
                 super.sendLevelInfo(serverPlayer, serverLevel);
 
-                // Send all resource packs
-                serverPlayer.connection.send(new ClientboundResourcePackPopPacket(Optional.empty()));
-
                 EditorState editorState = ReplayServer.this.getEditorState();
                 if (!editorState.replayVisuals.disableServerResourcePack) {
                     for (RemotePack remotePack : remotePacks.values()) {
-                        serverPlayer.connection.send(new ClientboundResourcePackPushPacket(remotePack.id,
-                            remotePack.url, remotePack.hash, true, Optional.empty()));
+                        serverPlayer.connection.send(new ClientboundResourcePackPacket(
+                            remotePack.url, remotePack.hash, true, null
+                        ));
                     }
                 }
 
@@ -474,17 +434,21 @@ public class ReplayServer extends IntegratedServer {
     private int lastReplayTick;
     private long lastTickTimeNanos;
 
-    public double getPartialReplayTick() {
+    private boolean isPaused() {
+        return Minecraft.getInstance().isPaused();
+    }
+
+    public float getPartialReplayTick() {
         if (this.replayPaused || this.isPaused()) {
             return this.targetTick;
         } else {
             long currentNanos = Util.getNanos();
-            long nanosPerTick = this.tickRateManager().nanosecondsPerTick();
+            long nanosPerTick = this.tickRateManager.nanosecondsPerTick;
 
             double partial = (currentNanos - this.lastTickTimeNanos) / (double) nanosPerTick;
             partial = Math.max(0, Math.min(1, partial));
 
-            return this.lastReplayTick + partial;
+            return this.lastReplayTick + (float) partial;
         }
     }
 
@@ -590,20 +554,16 @@ public class ReplayServer extends IntegratedServer {
         currentTick += 1;
     }
 
-    public void handleConfigurationPacket(RegistryFriendlyByteBuf friendlyByteBuf) {
-        Packet<? super ClientConfigurationPacketListener> packet = this.configurationPacketCodec.decode(friendlyByteBuf);
-        this.gamePacketHandler.flushPendingEntities();
-        packet.handle(this.configurationPacketHandler);
+    public void handleConfigurationPacket(FriendlyByteBuf friendlyByteBuf) {
+        friendlyByteBuf.readerIndex(friendlyByteBuf.writerIndex());
     }
 
-    public void handleGamePacket(RegistryFriendlyByteBuf friendlyByteBuf) {
-        this.configurationPacketHandler.flushPendingConfiguration();
-
+    public void handleGamePacket(FriendlyByteBuf friendlyByteBuf) {
         int start = friendlyByteBuf.readerIndex();
         Packet<? super ClientGamePacketListener> packet;
         try {
-            packet = this.gamePacketCodec.decode(friendlyByteBuf);
-        } catch (DecoderException decoderException) {
+            packet = PacketHelper.readClientboundPacket(friendlyByteBuf);
+        } catch (DecoderException | IllegalStateException decoderException) {
             // Failed to decode packet, lets try ignoring it
             if (printFailedDecodePacketCount > 0) {
                 Flashback.LOGGER.error("Failed to decode packet from replay stream", decoderException);
@@ -625,8 +585,8 @@ public class ReplayServer extends IntegratedServer {
         // the packet != encode(decode(packet))
         if (packet instanceof ClientboundCustomPayloadPacket custom) {
             try {
-                var id = custom.payload().type().id();
-                if (id.getNamespace().startsWith("fabric-screen-handler-api")) {
+                var id = custom.getIdentifier();
+                if (id != null && id.getNamespace().startsWith("fabric-screen-handler-api")) {
                     return;
                 }
 
@@ -653,29 +613,27 @@ public class ReplayServer extends IntegratedServer {
         packet.handle(this.gamePacketHandler);
     }
 
-    public void handleCreateLocalPlayer(RegistryFriendlyByteBuf friendlyByteBuf) {
-        this.configurationPacketHandler.flushPendingConfiguration();
+    public void handleCreateLocalPlayer(FriendlyByteBuf friendlyByteBuf) {
         this.gamePacketHandler.flushPendingEntities();
         this.gamePacketHandler.handleCreateLocalPlayer(friendlyByteBuf);
     }
 
-    public void handleAccuratePlayerPosition(RegistryFriendlyByteBuf friendlyByteBuf) {
+    public void handleAccuratePlayerPosition(FriendlyByteBuf friendlyByteBuf) {
         FlashbackConfigV1 config = Flashback.getConfig();
         if (config.advanced.disableIncreasedFirstPersonUpdates) {
             friendlyByteBuf.readerIndex(friendlyByteBuf.writerIndex());
             return;
         }
 
-        var packet = FlashbackAccurateEntityPosition.STREAM_CODEC.decode(friendlyByteBuf);
+        var packet = new FlashbackAccurateEntityPosition(friendlyByteBuf);
 
         for (ReplayPlayer replayViewer : this.replayViewers) {
             ServerPlayNetworking.send(replayViewer, packet);
         }
     }
 
-    public void handleMoveEntities(RegistryFriendlyByteBuf friendlyByteBuf) {
+    public void handleMoveEntities(FriendlyByteBuf friendlyByteBuf) {
         this.gamePacketHandler.flushPendingEntities();
-        this.configurationPacketHandler.flushPendingConfiguration();
 
         int levelCount = friendlyByteBuf.readVarInt();
         for (int i = 0; i < levelCount; i++) {
@@ -733,10 +691,9 @@ public class ReplayServer extends IntegratedServer {
     }
 
     public void handleLevelChunkCached(int index) {
-        ClientboundLevelChunkWithLightPacket packet = this.replayChunkCache.getOrLoad(index, this.registryAccess(), this.gamePacketCodec);
+        ClientboundLevelChunkWithLightPacket packet = this.replayChunkCache.getOrLoad(index);
 
         if (packet != null) {
-            this.configurationPacketHandler.flushPendingConfiguration();
             this.gamePacketHandler.flushPendingEntities();
 
             try {
@@ -849,7 +806,7 @@ public class ReplayServer extends IntegratedServer {
         EditorState editorState = this.getEditorState();
 
         this.lastReplayTick = this.targetTick;
-        this.lastTickTimeNanos = this.nextTickTimeNanos - this.tickRateManager().nanosecondsPerTick();
+        this.lastTickTimeNanos = this.nextTickTimeNanos - this.tickRateManager.nanosecondsPerTick;
 
         // Update list of replay viewers
         this.replayViewers.clear();
@@ -898,8 +855,8 @@ public class ReplayServer extends IntegratedServer {
             this.replayPaused = true;
         }
 
-        ServerTickRateManager tickRateManager = this.tickRateManager();
-        ((ServerTickRateManagerExt)tickRateManager).flashback$setSuppressClientUpdates(true);
+//        ServerTickRateManager tickRateManager = this.tickRateManager;
+//        ((ServerTickRateManagerExt)tickRateManager).flashback$setSuppressClientUpdates(true);
         if (Flashback.EXPORT_JOB != null || this.targetTick == this.currentTick || normalPlayback || this.isFrozen) {
             this.runUpdates(booleanSupplier);
         } else {
@@ -920,8 +877,7 @@ public class ReplayServer extends IntegratedServer {
                     this.fastForwarding = this.targetTick < realTargetTick;
 
                     this.runUpdates(booleanSupplier);
-
-                    if (this.targetTick == realTargetTick) {
+                    if (this.replayPaused || this.targetTick == realTargetTick) {
                         break;
                     } else {
                         this.targetTick += 1;
@@ -930,7 +886,7 @@ public class ReplayServer extends IntegratedServer {
                 this.fastForwarding = false;
             }
         }
-        ((ServerTickRateManagerExt)tickRateManager).flashback$setSuppressClientUpdates(false);
+//        ((ServerTickRateManagerExt)tickRateManager).flashback$setSuppressClientUpdates(false);
 
         if (this.forceApplyKeyframes.compareAndSet(true, false)) {
             ((MinecraftExt)Minecraft.getInstance()).flashback$applyKeyframes();
@@ -1035,32 +991,23 @@ public class ReplayServer extends IntegratedServer {
 
     private void tickResourcePacks(EditorState editorState) {
         if (this.remotePacks.isEmpty() || editorState.replayVisuals.disableServerResourcePack) {
-            if (!this.oldRemotePacks.isEmpty()) {
-                this.oldRemotePacks.clear();
-                this.getPlayerList().broadcastAll(new ClientboundResourcePackPopPacket(Optional.empty()));
-            }
+            this.oldRemotePacks.clear();
         } else {
             for (Map.Entry<UUID, RemotePack> entry : this.remotePacks.entrySet()) {
                 RemotePack remotePack = entry.getValue();
                 RemotePack oldRemotePack = this.oldRemotePacks.get(entry.getKey());
                 if (oldRemotePack == null) {
-                    this.getPlayerList().broadcastAll(new ClientboundResourcePackPushPacket(remotePack.id, remotePack.url, remotePack.hash,
-                        true, Optional.empty()));
+                    this.getPlayerList().broadcastAll(new ClientboundResourcePackPacket(
+                        remotePack.url, remotePack.hash, true, null
+                    ));
                 } else if (!oldRemotePack.equals(remotePack)) {
-                    this.getPlayerList().broadcastAll(new ClientboundResourcePackPopPacket(Optional.of(remotePack.id)));
-                    this.getPlayerList().broadcastAll(new ClientboundResourcePackPushPacket(remotePack.id, remotePack.url, remotePack.hash,
-                        true, Optional.empty()));
+                    this.getPlayerList().broadcastAll(new ClientboundResourcePackPacket(
+                        remotePack.url, remotePack.hash, true, null
+                    ));
                 }
                 this.oldRemotePacks.put(entry.getKey(), remotePack);
             }
-            this.oldRemotePacks.keySet().removeIf(uuid -> {
-                if (!this.remotePacks.containsKey(uuid)) {
-                    this.getPlayerList().broadcastAll(new ClientboundResourcePackPopPacket(Optional.of(uuid)));
-                    return true;
-                } else {
-                    return false;
-                }
-            });
+            this.oldRemotePacks.keySet().removeIf(uuid -> !this.remotePacks.containsKey(uuid));
         }
         this.hasServerResourcePack = !this.remotePacks.isEmpty();
     }
@@ -1098,11 +1045,10 @@ public class ReplayServer extends IntegratedServer {
         }
 
         // Update tick rate & frozen state
-        ServerTickRateManager tickRateManager = this.tickRateManager();
         if (tickRateManager.tickrate() != tickRate) {
             tickRateManager.setTickRate(tickRate);
         }
-        if (tickRateManager.isFrozen() != isFrozen) {
+        if (tickRateManager.isFrozen != isFrozen) {
             tickRateManager.setFrozen(isFrozen);
         }
 
@@ -1154,15 +1100,15 @@ public class ReplayServer extends IntegratedServer {
                         int quantizedYRot = Mth.floor(serverEntity.entity.getYRot() * 256.0F / 360.0F);
                         int quantizedXRot = Mth.floor(serverEntity.entity.getXRot() * 256.0F / 360.0F);
 
-                        if (!serverEntity.entity.isPassenger() && !serverEntity.positionCodec.getBase().equals(trackingPosition)) {
+                        if (!serverEntity.entity.isPassenger() && !serverEntity.positionCodec.decode(0,0,0).equals(trackingPosition)) {
                             trackedEntity.broadcast(new ClientboundTeleportEntityPacket(serverEntity.entity));
                             serverEntity.positionCodec.setBase(trackingPosition);
-                            serverEntity.lastSentYRot = quantizedYRot;
-                            serverEntity.lastSentXRot = quantizedXRot;
-                        } else if (quantizedYRot != serverEntity.lastSentYRot || quantizedXRot != serverEntity.lastSentXRot) {
+                            serverEntity.yRotp = quantizedYRot;
+                            serverEntity.xRotp = quantizedXRot;
+                        } else if (quantizedYRot != serverEntity.yRotp || quantizedXRot != serverEntity.xRotp) {
                             trackedEntity.broadcast(new ClientboundMoveEntityPacket.Rot(entityId, (byte) quantizedYRot, (byte) quantizedXRot, serverEntity.wasOnGround));
-                            serverEntity.lastSentYRot = quantizedYRot;
-                            serverEntity.lastSentXRot = quantizedXRot;
+                            serverEntity.yRotp = quantizedYRot;
+                            serverEntity.xRotp = quantizedXRot;
                         }
                     }
                 }
@@ -1175,7 +1121,11 @@ public class ReplayServer extends IntegratedServer {
                 this.processedSnapshot = false;
 
                 for (ReplayPlayer replayViewer : this.replayViewers) {
-                    replayViewer.connection.chunkSender.sendNextChunks(replayViewer);
+                    for (long chunk : replayViewer.pendingChunks) {
+                        ChunkPos pos = new ChunkPos(chunk);
+                        ServerLevel level = replayViewer.serverLevel();
+                        replayViewer.trackChunk(pos, new ClientboundLevelChunkWithLightPacket(level.getChunk(pos.x, pos.z), level.getLightEngine(), null, null));
+                    }
                     ServerPlayNetworking.send(replayViewer, FlashbackInstantlyLerp.INSTANCE);
                     ServerPlayNetworking.send(replayViewer, FlashbackClearParticles.INSTANCE);
                 }
@@ -1192,22 +1142,22 @@ public class ReplayServer extends IntegratedServer {
 
             if (this.replayPaused) {
                 if (tickChanged) {
-                    if (tickRateManager.isFrozen()) {
+                    if (tickRateManager.isFrozen) {
                         tickRateManager.setFrozen(false);
                     }
-                    ((ServerTickRateManagerExt)tickRateManager).flashback$setSuppressClientUpdates(false);
+//                    ((ServerTickRateManagerExt)tickRateManager).flashback$setSuppressClientUpdates(false);
                     for (ReplayPlayer replayViewer : this.replayViewers) {
                         ServerPlayNetworking.send(replayViewer, FlashbackForceClientTick.INSTANCE);
                     }
                     tickRateManager.setFrozen(true);
-                    ((ServerTickRateManagerExt)tickRateManager).flashback$setSuppressClientUpdates(true);
-                } else if (!tickRateManager.isFrozen()) {
+//                    ((ServerTickRateManagerExt)tickRateManager).flashback$setSuppressClientUpdates(true);
+                } else if (!tickRateManager.isFrozen) {
                     tickRateManager.setFrozen(true);
                 }
-            } else if (tickRateManager.isFrozen() != isFrozen) {
+            } else if (tickRateManager.isFrozen != isFrozen) {
                 tickRateManager.setFrozen(isFrozen);
             }
-        } else if (!tickRateManager.isFrozen()) {
+        } else if (!tickRateManager.isFrozen) {
             tickRateManager.setFrozen(true);
         }
     }

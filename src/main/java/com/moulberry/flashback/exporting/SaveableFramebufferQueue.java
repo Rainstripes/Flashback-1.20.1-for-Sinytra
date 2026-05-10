@@ -49,7 +49,7 @@ public class SaveableFramebufferQueue implements AutoCloseable {
         if (this.available.isEmpty()) {
             throw new IllegalStateException("No textures available!");
         }
-        return this.available.removeFirst();
+        return this.available.remove(0);
     }
 
     private void blitFlip(RenderTarget src, boolean supersampling) {
@@ -69,12 +69,13 @@ public class SaveableFramebufferQueue implements AutoCloseable {
         ShaderInstance flipShader = ShaderManager.blitScreenFlip;
         flipShader.setSampler("DiffuseSampler", src.colorTextureId);
         flipShader.apply();
-        BufferBuilder bufferBuilder = RenderSystem.renderThreadTesselator().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLIT_SCREEN);
-        bufferBuilder.addVertex(0.0F, 1.0F, 0.0F);
-        bufferBuilder.addVertex(1.0F, 1.0F, 0.0F);
-        bufferBuilder.addVertex(1.0F, 0.0F, 0.0F);
-        bufferBuilder.addVertex(0.0F, 0.0F, 0.0F);
-        BufferUploader.draw(bufferBuilder.buildOrThrow());
+        BufferBuilder bufferBuilder = RenderSystem.renderThreadTesselator().getBuilder();
+        bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLIT_SCREEN);
+        bufferBuilder.vertex(0.0F, 1.0F, 0.0F);
+        bufferBuilder.vertex(1.0F, 1.0F, 0.0F);
+        bufferBuilder.vertex(1.0F, 0.0F, 0.0F);
+        bufferBuilder.vertex(0.0F, 0.0F, 0.0F);
+        BufferUploader.draw(bufferBuilder.end());
         flipShader.clear();
 
         GlStateManager._depthMask(true);
@@ -105,7 +106,7 @@ public class SaveableFramebufferQueue implements AutoCloseable {
             return null;
         }
 
-        SaveableFramebuffer texture = this.waiting.removeFirst();
+        SaveableFramebuffer texture = this.waiting.remove(0);
 
         NativeImage nativeImage = texture.finishDownload(this.width, this.height);
         FloatBuffer audioBuffer = texture.audioBuffer;

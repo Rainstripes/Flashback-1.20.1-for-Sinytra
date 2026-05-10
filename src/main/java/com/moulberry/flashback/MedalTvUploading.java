@@ -160,7 +160,9 @@ public class MedalTvUploading {
         }
 
         uploadStatus.progressPercentage = 10;
-        uploadStatus.shareUrl = Util.parseAndValidateUntrustedUri(resultJson.get("shareUrl").getAsString());
+
+        // FIXME: FIX!!!!!!!!!!!!
+//        uploadStatus.shareUrl = Util.parseAndValidateUntrustedUri(resultJson.get("shareUrl").getAsString());
         return resultJson.get("signedUrl").getAsString();
     }
 

@@ -10,11 +10,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.UUID;
+
 @Mixin(AttributeInstance.class)
 public abstract class MixinAttributeInstance {
 
     @Shadow
-    public abstract boolean removeModifier(ResourceLocation resourceLocation);
+    public abstract void removeModifier(UUID uUID);
 
     @Inject(method = "addModifier", at = @At(value = "HEAD"))
     public void addModifier(AttributeModifier attributeModifier, CallbackInfo ci) {
@@ -22,7 +24,7 @@ public abstract class MixinAttributeInstance {
         // Remove the modifier first in order to ensure no exceptions are thrown
         if (Flashback.isInReplay()) {
             try {
-                this.removeModifier(attributeModifier.id());
+                this.removeModifier(attributeModifier.getId());
             } catch (Exception ignored) {}
         }
     }

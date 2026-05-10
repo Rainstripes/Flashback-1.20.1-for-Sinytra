@@ -1,5 +1,6 @@
 package com.moulberry.flashback.screen.select_replay;
 
+import com.moulberry.flashback.Flashback;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -11,8 +12,8 @@ import java.util.function.Consumer;
 
 public class SortDirectionButton extends Button {
 
-    private static final ResourceLocation DOWN_ARROW = ResourceLocation.parse("flashback:down_arrow.png");
-    private static final ResourceLocation UP_ARROW = ResourceLocation.parse("flashback:up_arrow.png");
+    private static final ResourceLocation DOWN_ARROW = Flashback.createResourceLocation("down_arrow.png");
+    private static final ResourceLocation UP_ARROW = Flashback.createResourceLocation("up_arrow.png");
 
     public boolean sortDescending;
 

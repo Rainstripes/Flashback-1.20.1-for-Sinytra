@@ -3,6 +3,7 @@ package com.moulberry.flashback.keyframe.change;
 import com.moulberry.flashback.keyframe.handler.KeyframeHandler;
 import com.moulberry.flashback.sound.FlashbackAudioBuffer;
 import com.moulberry.flashback.sound.FlashbackAudioManager;
+import com.moulberry.flashback.ext.MinecraftExt;
 import net.minecraft.client.Minecraft;
 
 public class KeyframeChangePlayAudio implements KeyframeChange {
@@ -20,9 +21,8 @@ public class KeyframeChangePlayAudio implements KeyframeChange {
     @Override
     public void apply(KeyframeHandler keyframeHandler) {
         Minecraft minecraft = keyframeHandler.getMinecraft();
-        if (minecraft != null && minecraft.level != null) {
-            var tickRateManager = minecraft.level.tickRateManager();
-            float tickrate = tickRateManager.tickrate();
+        if (minecraft != null) {
+            float tickrate = minecraft instanceof MinecraftExt minecraftExt ? minecraftExt.flashback$getReplayTimer().manager.tickrate() : 20.0f;
             FlashbackAudioManager.playAt(minecraft.getSoundManager().soundEngine, this.audioBuffer, this.startTick,
                     this.seconds, tickrate / 20f);
         }

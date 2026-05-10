@@ -1,14 +1,10 @@
 package com.moulberry.flashback.mixin.replay_server;
 
-import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
-import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
 import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
 import com.moulberry.flashback.Flashback;
 import com.moulberry.flashback.playback.ReplayServer;
-import net.minecraft.network.protocol.login.ClientboundGameProfilePacket;
-import com.moulberry.flashback.screen.select_replay.PendingSelectionEntry;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.login.ServerboundHelloPacket;
 import net.minecraft.server.MinecraftServer;
@@ -31,33 +27,36 @@ public abstract class MixinServerLoginPacketListenerImpl {
     @Final
     MinecraftServer server;
 
-    @Shadow
-    abstract void startClientVerification(GameProfile gameProfile);
 
     @Shadow
     @Nullable
-    String requestedUsername;
+    private GameProfile gameProfile;
+
+    @Shadow
+    private ServerLoginPacketListenerImpl.State state;
 
     @Inject(method = "handleHello", at = @At("HEAD"), cancellable = true)
     public void handleHello(ServerboundHelloPacket serverboundHelloPacket, CallbackInfo ci) {
         if (this.server instanceof ReplayServer) {
-            this.requestedUsername = ReplayServer.REPLAY_VIEWER_NAME;
+//            this.requestedUsername = ReplayServer.REPLAY_VIEWER_NAME;
             UUID replayViewerUUID = UUID.nameUUIDFromBytes(serverboundHelloPacket.name().getBytes(StandardCharsets.UTF_8));
             GameProfile gameProfile = new GameProfile(replayViewerUUID, ReplayServer.REPLAY_VIEWER_NAME);
             gameProfile.getProperties().put("IsReplayViewer", new Property("IsReplayViewer", "True"));
-            this.startClientVerification(gameProfile);
+            this.gameProfile = gameProfile;
+            this.state = ServerLoginPacketListenerImpl.State.READY_TO_ACCEPT;
             ci.cancel();
         }
     }
 
     // Disable strict error handling
-    @WrapOperation(method = "finishLoginAndWaitForClient", at = @At(value = "NEW", target = "net/minecraft/network/protocol/login/ClientboundGameProfilePacket"))
-    public ClientboundGameProfilePacket wrapCreateClientboundGameProfilePacket(GameProfile gameProfile, boolean strict, Operation<ClientboundGameProfilePacket> original) {
-        if (this.server instanceof ReplayServer) {
-            strict = false;
-        }
-        return original.call(gameProfile, strict);
-    }
+    // todo: is this required for 1.20.1?
+//    @WrapOperation(method = "finishLoginAndWaitForClient", at = @At(value = "NEW", target = "net/minecraft/network/protocol/login/ClientboundGameProfilePacket"))
+//    public ClientboundGameProfilePacket wrapCreateClientboundGameProfilePacket(GameProfile gameProfile, boolean strict, Operation<ClientboundGameProfilePacket> original) {
+//        if (this.server instanceof ReplayServer) {
+//            strict = false;
+//        }
+//        return original.call(gameProfile, strict);
+//    }
 
     @WrapWithCondition(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/network/ServerLoginPacketListenerImpl;disconnect(Lnet/minecraft/network/chat/Component;)V"))
     public boolean dontDisconnectInReplay(ServerLoginPacketListenerImpl instance, Component component) {

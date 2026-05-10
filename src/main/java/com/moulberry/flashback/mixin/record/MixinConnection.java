@@ -9,7 +9,6 @@ import net.minecraft.network.ConnectionProtocol;
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.PacketSendListener;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.configuration.ClientConfigurationPacketListener;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
@@ -35,14 +34,12 @@ public class MixinConnection implements ConnectionExt {
         if (recorder != null) {
             if (packetListener instanceof ClientGamePacketListener) {
                 recorder.writePacketAsync(packet, ConnectionProtocol.PLAY);
-            } else if (packetListener instanceof ClientConfigurationPacketListener) {
-                recorder.writePacketAsync(packet, ConnectionProtocol.CONFIGURATION);
             }
         }
     }
 
-    @Inject(method = "send(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketSendListener;Z)V", at = @At("HEAD"), cancellable = true)
-    public void send(Packet<?> packet, @Nullable PacketSendListener packetSendListener, boolean bl, CallbackInfo ci) {
+    @Inject(method = "sendPacket", at = @At("HEAD"), cancellable = true)
+    public void sendPacket(Packet<?> packet, PacketSendListener packetSendListener, CallbackInfo ci) {
         if (this.filterUnnecessaryPackets && IgnoredPacketSet.isIgnoredInReplay(packet)) {
             ci.cancel();
         }

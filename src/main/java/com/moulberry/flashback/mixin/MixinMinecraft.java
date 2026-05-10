@@ -1,18 +1,19 @@
 package com.moulberry.flashback.mixin;
 
+import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService;
 import com.llamalad7.mixinextras.sugar.Local;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.moulberry.flashback.Flashback;
-import com.moulberry.flashback.FreezeSlowdownFormula;
 import com.moulberry.flashback.combo_options.GlowingOverride;
 import com.moulberry.flashback.configuration.FlashbackConfigV1;
 import com.moulberry.flashback.exporting.ExportJob;
 import com.moulberry.flashback.exporting.ExportJobQueue;
 import com.moulberry.flashback.keyframe.handler.MinecraftKeyframeHandler;
-import com.moulberry.flashback.keyframe.handler.TickrateKeyframeCapture;
+import com.moulberry.flashback.playback.ReplayTimer;
+import com.moulberry.flashback.playback.TickRateManager;
 import com.moulberry.flashback.sound.FlashbackAudioManager;
 import com.moulberry.flashback.state.EditorState;
 import com.moulberry.flashback.state.EditorStateManager;
@@ -45,7 +46,6 @@ import net.minecraft.server.packs.repository.PackRepository;
 import net.minecraft.server.players.GameProfileCache;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.util.thread.ReentrantBlockableEventLoop;
-import net.minecraft.world.TickRateManager;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.entity.SkullBlockEntity;
 import net.minecraft.world.level.storage.LevelStorageSource;
@@ -68,10 +68,6 @@ import java.util.function.Function;
 
 @Mixin(Minecraft.class)
 public abstract class MixinMinecraft implements MinecraftExt {
-
-    @Shadow
-    public abstract void disconnect();
-
     @Shadow
     @Final
     private AtomicReference<StoringChunkProgressListener> progressListener;
@@ -106,9 +102,6 @@ public abstract class MixinMinecraft implements MinecraftExt {
     protected abstract void runTick(boolean bl);
 
     @Shadow
-    protected abstract void handleDelayedCrash();
-
-    @Shadow
     public abstract User getUser();
 
     @Shadow
@@ -136,20 +129,14 @@ public abstract class MixinMinecraft implements MinecraftExt {
 
     @Shadow
     @Final
-    public DeltaTracker.Timer timer;
-
-    @Shadow
-    public long clientTickCount;
+    public Timer timer;
 
     @Shadow @Final public Options options;
 
     @Shadow @Final public LevelRenderer levelRenderer;
 
     @Shadow
-    protected abstract float getTickTargetMillis(float f);
-
-    @Shadow
-    public abstract void doWorldLoad(LevelStorageSource.LevelStorageAccess levelStorageAccess, PackRepository packRepository, WorldStem worldStem, boolean bl);
+    public abstract void doWorldLoad(String string, LevelStorageSource.LevelStorageAccess levelStorageAccess, PackRepository packRepository, WorldStem worldStem, boolean bl);
 
     @Inject(method="<init>", at=@At("RETURN"))
     public void init(GameConfig gameConfig, CallbackInfo ci) {
@@ -241,99 +228,28 @@ public abstract class MixinMinecraft implements MinecraftExt {
     }
 
     @Unique
-    private int serverTickFreezeDelayStart = -1;
-    @Unique
-    private double clientTickFreezeDelayStart = -1;
+    private final ReplayTimer replayTimer = new ReplayTimer(0, new TickRateManager(false));
 
-    @Inject(method = "getTickTargetMillis", at = @At("HEAD"), cancellable = true)
-    public void getTickTargetMillis(float f, CallbackInfoReturnable<Float> cir) {
-        ReplayServer replayServer = Flashback.getReplayServer();
-        if (replayServer != null) {
-            if (this.level == null) {
-                clientTickFreezeDelayStart = -1;
-                serverTickFreezeDelayStart = -1;
-                return;
-            }
-
-            EditorState editorState = EditorStateManager.getCurrent();
-            if (editorState != null && !replayServer.replayPaused) {
-                double partialReplayTick = replayServer.getPartialReplayTick();
-
-                TickrateKeyframeCapture capture = new TickrateKeyframeCapture();
-                editorState.applyKeyframes(capture, (float) partialReplayTick);
-
-                if (capture.frozen && capture.frozenDelay > 0 && this.timer instanceof DeltaTracker.Timer timer) {
-                    if (clientTickFreezeDelayStart < 0) {
-                        clientTickFreezeDelayStart = this.clientTickCount + 1;
-                        serverTickFreezeDelayStart = (int) partialReplayTick;
-
-                        TickRateManager tickRateManager = this.level.tickRateManager();
-                        tickRateManager.setFrozenTicksToRun(capture.frozenDelay <= 5 ? 1 : 2);
-                    }
-
-                    double freezeClientTicks = capture.frozenDelay <= 5 ? 0.999 : 1.999;
-                    double freezeDerivative = capture.frozenDelay <= 5 ? 1.0 : 0.5;
-
-                    double deltaFromStart = partialReplayTick - serverTickFreezeDelayStart;
-
-                    if (deltaFromStart >= 0 && deltaFromStart <= capture.frozenDelay) {
-                        double freezePowerBase = FreezeSlowdownFormula.getFreezePowerBase(capture.frozenDelay, freezeDerivative);
-                        double clientTicks = freezeClientTicks * FreezeSlowdownFormula.calculateFreezeClientTick(deltaFromStart,
-                            capture.frozenDelay, freezePowerBase);
-
-                        double currentClientTicks = this.clientTickCount + timer.deltaTickResidual - clientTickFreezeDelayStart;
-                        double freezeRate = Math.max(0.01f, Math.min(1f, clientTicks - currentClientTicks));
-
-                        float tickrate = Math.max(1f, capture.tickrate) * (float) freezeRate;
-                        cir.setReturnValue(1000f / tickrate);
-                        return;
-                    }
-                } else {
-                    clientTickFreezeDelayStart = -1;
-                    serverTickFreezeDelayStart = -1;
-                }
-
-                TickRateManager tickRateManager = this.level.tickRateManager();
-                if (tickRateManager.runsNormally()) {
-                    float manualMultiplier = replayServer.getDesiredTickRate(true) / 20.0f;
-                    cir.setReturnValue(1000f / Math.max(1f, capture.tickrate * manualMultiplier));
-                }
-            } else {
-                TickRateManager tickRateManager = this.level.tickRateManager();
-                if (tickRateManager.runsNormally()) {
-                    cir.setReturnValue(tickRateManager.millisecondsPerTick());
-                }
-            }
-
-        }
+    @Override
+    public ReplayTimer flashback$getReplayTimer() {
+        return this.replayTimer;
     }
 
-    @Inject(method = "disconnect(Lnet/minecraft/client/gui/screens/Screen;Z)V", at = @At("HEAD"))
-    public void disconnectHead(Screen screen, boolean isTransferring, CallbackInfo ci) {
-        try {
-            if (Flashback.getConfig().recordingControls.automaticallyFinish && Flashback.RECORDER != null && !isTransferring) {
-                Flashback.finishRecordingReplay();
-            }
-        } catch (Exception e) {
-            Flashback.LOGGER.error("Failed to finish replay on disconnect", e);
-        }
-    }
-
-    @Inject(method = "disconnect(Lnet/minecraft/client/gui/screens/Screen;Z)V", at = @At("RETURN"))
-    public void disconnectReturn(Screen screen, boolean bl, CallbackInfo ci) {
+    @Inject(method = "clearLevel(Lnet/minecraft/client/gui/screens/Screen;)V", at = @At("RETURN"))
+    public void disconnectReturn(Screen screen, CallbackInfo ci) {
         Flashback.updateIsInReplay();
     }
 
     @Unique
-    private final DeltaTracker.Timer localPlayerTimer = new DeltaTracker.Timer(20.0f, 0, FloatUnaryOperator.identity());
+    private final Timer localPlayerTimer = new Timer(20.0f, 0);
 
     @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;runAllTasks()V", shift = At.Shift.AFTER))
-    public void runTick_runAllTasks(boolean runTick, CallbackInfo ci) {
+    public void runTick_runAllTasks(boolean runTick, CallbackInfo ci, @Local com.llamalad7.mixinextras.sugar.ref.LocalIntRef i) {
         if (ExportJobQueue.drainingQueue) {
             if (ExportJobQueue.queuedJobs.isEmpty()) {
                 ExportJobQueue.drainingQueue = false;
             } else if (Flashback.EXPORT_JOB == null) {
-                Flashback.EXPORT_JOB = new ExportJob(ExportJobQueue.queuedJobs.removeFirst());
+                Flashback.EXPORT_JOB = new ExportJob(ExportJobQueue.queuedJobs.remove(0));
             }
         }
 
@@ -348,19 +264,36 @@ public abstract class MixinMinecraft implements MinecraftExt {
         }
 
         if (Flashback.isInReplay()) {
-            int localPlayerTicks = this.localPlayerTimer.advanceTime(Util.getMillis(), runTick);
+            i.set(this.replayTimer.advanceTime(Util.getMillis()));
+            this.timer.tickDelta = this.replayTimer.tickDelta;
+            this.timer.partialTick = this.replayTimer.manager.runsNormally() ? this.replayTimer.partialTick : 1.0F;
+
+            int localPlayerTicks = this.localPlayerTimer.advanceTime(Util.getMillis());
             if (this.flashback$overridingLocalPlayerTimer()) {
                 localPlayerTicks = Math.min(10, localPlayerTicks);
-                for (int i = 0; i < localPlayerTicks; i++) {
+                for (int j = 0; j < localPlayerTicks; j++) {
                     this.level.guardEntityTick(this.level::tickNonPassenger, this.player);
                 }
             }
         }
     }
 
+    @Inject(method = "tick", at = @At("HEAD"))
+    public void tick_tickRateManager(CallbackInfo ci) {
+        if (Flashback.isInReplay()) {
+            this.replayTimer.manager.tick();
+            this.timer.partialTick = this.replayTimer.manager.runsNormally() ? this.replayTimer.partialTick : 1.0F;
+        }
+    }
+
+    @WrapWithCondition(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/LevelRenderer;tick()V"))
+    public boolean tick_levelRenderer(LevelRenderer instance) {
+        return !Flashback.isInReplay() || this.replayTimer.manager.runsNormally();
+    }
+
     @Override
     public boolean flashback$overridingLocalPlayerTimer() {
-        return !Flashback.isExporting() && this.level != null && this.player != null && !this.player.isPassenger() && !this.player.isRemoved() && Math.round(this.getTickTargetMillis(50)) != 50;
+        return !Flashback.isExporting() && this.level != null && this.player != null && !this.player.isPassenger() && !this.player.isRemoved();
     }
 
     @Override
@@ -368,7 +301,7 @@ public abstract class MixinMinecraft implements MinecraftExt {
         if (this.cameraEntity != this.player || !this.flashback$overridingLocalPlayerTimer()) {
             return originalPartialTick;
         }
-        return this.localPlayerTimer.getGameTimeDeltaPartialTick(true);
+        return this.localPlayerTimer.partialTick;
     }
 
     @Unique
@@ -392,14 +325,11 @@ public abstract class MixinMinecraft implements MinecraftExt {
         }
 
         LocalPlayer player = this.player;
-        DeltaTracker deltaTracker = this.timer;
-
         if (Flashback.RECORDER != null && player != null) {
-            float partialTick = deltaTracker.getGameTimeDeltaPartialTick(true);
-            Flashback.RECORDER.trackPartialPosition(player, partialTick);
+            Flashback.RECORDER.trackPartialPosition(player, this.timer.partialTick);
         }
 
-        AccurateEntityPositionHandler.apply(this.level, deltaTracker);
+        AccurateEntityPositionHandler.apply(this.level, this.timer.partialTick);
 
         boolean paused = replayServer.replayPaused;
         boolean forceApplyKeyframes = this.applyKeyframes.compareAndSet(true, false);
@@ -436,7 +366,7 @@ public abstract class MixinMinecraft implements MinecraftExt {
         if (info != null) {
             function = thread -> new ReplayServer(thread, (Minecraft) (Object) this,
                 levelStorageAccess, packRepository, stem, services, i -> {
-                StoringChunkProgressListener storingChunkProgressListener = StoringChunkProgressListener.createFromGameruleRadius(i);
+                StoringChunkProgressListener storingChunkProgressListener = new StoringChunkProgressListener(i);
                 this.progressListener.set(storingChunkProgressListener);
                 return ProcessorChunkProgressListener.createStarted(storingChunkProgressListener, this.progressTasks::add);
             }, info.playbackUUID(), info.path());
@@ -453,7 +383,7 @@ public abstract class MixinMinecraft implements MinecraftExt {
     public void flashback$startReplayServer(LevelStorageSource.LevelStorageAccess levelStorageAccess, PackRepository packRepository, WorldStem stem, StartReplayServerInfo info) {
         this.info.set(info);
         try {
-            this.doWorldLoad(levelStorageAccess, packRepository, stem, false);
+            this.doWorldLoad("idk", levelStorageAccess, packRepository, stem, false);
         } finally {
             this.info.remove();
         }

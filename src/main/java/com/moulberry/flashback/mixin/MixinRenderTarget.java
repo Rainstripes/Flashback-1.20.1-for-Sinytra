@@ -8,12 +8,13 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.MeshData;
+import com.mojang.blaze3d.vertex.VertexSorting;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.moulberry.flashback.WindowSizeTracker;
 import com.moulberry.flashback.editor.ui.ReplayUI;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
+import org.joml.Matrix4f;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
@@ -55,13 +56,24 @@ public abstract class MixinRenderTarget {
             Minecraft minecraft = Minecraft.getInstance();
             ShaderInstance shaderInstance = Objects.requireNonNull(minecraft.gameRenderer.blitShader, "Blit shader not loaded");
             shaderInstance.setSampler("DiffuseSampler", this.colorTextureId);
+            Matrix4f matrix4f = (new Matrix4f()).setOrtho(0.0F, Math.max(1, (int) (realWidth * frameWidth)), Math.max(1, (int) (realHeight * frameHeight)), 0.0F, 1000.0F, 3000.0F);
+            RenderSystem.setProjectionMatrix(matrix4f, VertexSorting.ORTHOGRAPHIC_Z);
+            if (shaderInstance.MODEL_VIEW_MATRIX != null) {
+                shaderInstance.MODEL_VIEW_MATRIX.set((new Matrix4f()).translation(0.0F, 0.0F, -2000.0F));
+            }
+            if (shaderInstance.PROJECTION_MATRIX != null) {
+                shaderInstance.PROJECTION_MATRIX.set(matrix4f);
+            }
             shaderInstance.apply();
-            BufferBuilder bufferBuilder = RenderSystem.renderThreadTesselator().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLIT_SCREEN);
-            bufferBuilder.addVertex(0.0f, 0.0f, 0.0f);
-            bufferBuilder.addVertex(1.0f, 0.0f, 0.0f);
-            bufferBuilder.addVertex(1.0f, 1.0f, 0.0f);
-            bufferBuilder.addVertex(0.0f, 1.0f, 0.0f);
-            BufferUploader.draw(bufferBuilder.buildOrThrow());
+            float renderWidth = Math.max(1, (int) (realWidth * frameWidth));
+            float renderHeight = Math.max(1, (int) (realHeight * frameHeight));
+            BufferBuilder bufferBuilder = RenderSystem.renderThreadTesselator().getBuilder();
+            bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+            bufferBuilder.vertex(0.0, renderHeight, 0.0).uv(0.0F, 0.0F).color(255, 255, 255, 255).endVertex();
+            bufferBuilder.vertex(renderWidth, renderHeight, 0.0).uv(1.0F, 0.0F).color(255, 255, 255, 255).endVertex();
+            bufferBuilder.vertex(renderWidth, 0.0, 0.0).uv(1.0F, 1.0F).color(255, 255, 255, 255).endVertex();
+            bufferBuilder.vertex(0.0, 0.0, 0.0).uv(0.0F, 1.0F).color(255, 255, 255, 255).endVertex();
+            BufferUploader.draw(bufferBuilder.end());
             shaderInstance.clear();
             GlStateManager._depthMask(true);
             GlStateManager._colorMask(true, true, true, true);

@@ -117,44 +117,35 @@ public abstract class Keyframe {
         @Override
         public JsonElement serialize(Keyframe src, Type typeOfSrc, JsonSerializationContext context) {
             JsonObject jsonObject;
-            switch (src) {
-                case CameraKeyframe cameraKeyframe -> {
-                    jsonObject = (JsonObject) context.serialize(cameraKeyframe);
-                    jsonObject.addProperty("type", "camera");
-                }
-                case CameraOrbitKeyframe cameraOrbitKeyframe -> {
-                    jsonObject = (JsonObject) context.serialize(cameraOrbitKeyframe);
-                    jsonObject.addProperty("type", "camera_orbit");
-                }
-                case FOVKeyframe fovKeyframe -> {
-                    jsonObject = (JsonObject) context.serialize(fovKeyframe);
-                    jsonObject.addProperty("type", "fov");
-                }
-                case TickrateKeyframe tickrateKeyframe -> {
-                    jsonObject = (JsonObject) context.serialize(tickrateKeyframe);
-                    jsonObject.addProperty("type", "tickrate");
-                }
-                case FreezeKeyframe freezeKeyframe -> {
-                    jsonObject = (JsonObject) context.serialize(freezeKeyframe);
-                    jsonObject.addProperty("type", "freeze");
-                }
-                case TimeOfDayKeyframe timeOfDayKeyframe -> {
-                    jsonObject = (JsonObject) context.serialize(timeOfDayKeyframe);
-                    jsonObject.addProperty("type", "time");
-                }
-                case CameraShakeKeyframe cameraShakeKeyframe -> {
-                    jsonObject = (JsonObject) context.serialize(cameraShakeKeyframe);
-                    jsonObject.addProperty("type", "camera_shake");
-                }
-                case BlockOverrideKeyframe blockOverrideKeyframe -> {
-                    jsonObject = (JsonObject) context.serialize(blockOverrideKeyframe);
-                    jsonObject.addProperty("type", "block_override");
-                }
-                case AudioKeyframe audioKeyframe -> {
-                    jsonObject = (JsonObject) context.serialize(audioKeyframe);
-                    jsonObject.addProperty("type", "audio");
-                }
-                default -> throw new IllegalStateException("Unknown keyframe type: " + src.getClass());
+            if (src instanceof CameraKeyframe cameraKeyframe) {
+                jsonObject = (JsonObject) context.serialize(cameraKeyframe);
+                jsonObject.addProperty("type", "camera");
+            } else if (src instanceof CameraOrbitKeyframe cameraOrbitKeyframe) {
+                jsonObject = (JsonObject) context.serialize(cameraOrbitKeyframe);
+                jsonObject.addProperty("type", "camera_orbit");
+            } else if (src instanceof FOVKeyframe fovKeyframe) {
+                jsonObject = (JsonObject) context.serialize(fovKeyframe);
+                jsonObject.addProperty("type", "fov");
+            } else if (src instanceof TickrateKeyframe tickrateKeyframe) {
+                jsonObject = (JsonObject) context.serialize(tickrateKeyframe);
+                jsonObject.addProperty("type", "tickrate");
+            } else if (src instanceof FreezeKeyframe freezeKeyframe) {
+                jsonObject = (JsonObject) context.serialize(freezeKeyframe);
+                jsonObject.addProperty("type", "freeze");
+            } else if (src instanceof TimeOfDayKeyframe timeOfDayKeyframe) {
+                jsonObject = (JsonObject) context.serialize(timeOfDayKeyframe);
+                jsonObject.addProperty("type", "time");
+            } else if (src instanceof CameraShakeKeyframe cameraShakeKeyframe) {
+                jsonObject = (JsonObject) context.serialize(cameraShakeKeyframe);
+                jsonObject.addProperty("type", "camera_shake");
+            } else if (src instanceof BlockOverrideKeyframe blockOverrideKeyframe) {
+                jsonObject = (JsonObject) context.serialize(blockOverrideKeyframe);
+                jsonObject.addProperty("type", "block_override");
+            } else if (src instanceof AudioKeyframe audioKeyframe) {
+                jsonObject = (JsonObject) context.serialize(audioKeyframe);
+                jsonObject.addProperty("type", "audio");
+            } else {
+                throw new IllegalStateException("Unknown keyframe type: " + src.getClass());
             }
             jsonObject.add("interpolation_type", context.serialize(src.interpolationType));
             return jsonObject;

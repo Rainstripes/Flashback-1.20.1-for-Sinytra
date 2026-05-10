@@ -5,6 +5,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.moulberry.flashback.Flashback;
 import com.moulberry.flashback.ext.ItemInHandRendererExt;
+import com.moulberry.flashback.ext.MinecraftExt;
 import com.moulberry.mixinconstraints.annotations.IfModLoaded;
 import net.irisshaders.iris.pathways.HandRenderer;
 import net.minecraft.client.Minecraft;
@@ -76,7 +77,7 @@ public abstract class MixinIrisHandRenderer {
             for (InteractionHand hand : HANDS) {
                 if (!this.isHandTranslucent(hand)) renderableArms.add(hand);
             }
-            float frozenPartialTick = Minecraft.getInstance().level.tickRateManager().isEntityFrozen(spectatingPlayer) ? 1.0f : f;
+            float frozenPartialTick = ((MinecraftExt) Minecraft.getInstance()).flashback$getReplayTimer().manager.isEntityFrozen(spectatingPlayer) ? 1.0f : f;
             ((ItemInHandRendererExt)instance).flashback$renderHandsWithItems(frozenPartialTick, poseStack, bufferSource, spectatingPlayer, i, renderableArms);
         } else {
             original.call(instance, f, poseStack, bufferSource, localPlayer, i);
@@ -91,7 +92,7 @@ public abstract class MixinIrisHandRenderer {
             for (InteractionHand hand : HANDS) {
                 if (this.isHandTranslucent(hand)) renderableArms.add(hand);
             }
-            float frozenPartialTick = Minecraft.getInstance().level.tickRateManager().isEntityFrozen(spectatingPlayer) ? 1.0f : f;
+            float frozenPartialTick = ((MinecraftExt) Minecraft.getInstance()).flashback$getReplayTimer().manager.isEntityFrozen(spectatingPlayer) ? 1.0f : f;
             ((ItemInHandRendererExt)instance).flashback$renderHandsWithItems(frozenPartialTick, poseStack, bufferSource, spectatingPlayer, i, renderableArms);
         } else {
             original.call(instance, f, poseStack, bufferSource, localPlayer, i);

@@ -1296,7 +1296,7 @@ public class TimelineWindow {
             }
         }
 
-        boolean multiple = selectedKeyframesList.size() >= 2 || selectedKeyframesList.getFirst().keyframeTicks().size() >= 2;
+        boolean multiple = selectedKeyframesList.size() >= 2 || selectedKeyframesList.get(0).keyframeTicks().size() >= 2;
 
         if (ImGui.button((multiple ? I18n.get("flashback.remove_all") : I18n.get("flashback.remove")) + "##RemoveButton")) {
             ImGui.closeCurrentPopup();

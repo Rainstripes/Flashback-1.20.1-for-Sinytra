@@ -18,6 +18,7 @@ import com.moulberry.flashback.keyframe.KeyframeType;
 import com.moulberry.flashback.keyframe.handler.KeyframeHandler;
 import com.moulberry.flashback.keyframe.handler.MinecraftKeyframeHandler;
 import com.moulberry.flashback.keyframe.handler.TickrateKeyframeCapture;
+import com.moulberry.flashback.playback.TickRateManager;
 import com.moulberry.flashback.sound.FlashbackAudioManager;
 import com.moulberry.flashback.state.EditorState;
 import com.moulberry.flashback.playback.ReplayServer;
@@ -25,8 +26,8 @@ import com.moulberry.flashback.visuals.AccurateEntityPositionHandler;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.Camera;
-import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.Timer;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
@@ -207,10 +208,10 @@ public class ExportJob {
 
             // Refreeze server & client
             replayServer.replayPaused = true;
-            ClientLevel level = Minecraft.getInstance().level;
-            if (level != null) {
-                level.tickRateManager().setFrozen(true);
-            }
+//            ClientLevel level = Minecraft.getInstance().level;
+//            if (level != null) {
+//                level.tickRateManager().setFrozen(true);
+//            }
 
             Minecraft.getInstance().getSoundManager().stop();
             Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_CHIME, 1.0f));
@@ -304,15 +305,15 @@ public class ExportJob {
 
             this.updateClientFreeze(frozen);
 
-            DeltaTracker.Timer timer = Minecraft.getInstance().timer;
-            timer.updateFrozenState(frozen);
-            timer.updatePauseState(false);
-            timer.deltaTicks = deltaTicksFloat;
-            timer.realtimeDeltaTicks = deltaTicksFloat;
-            timer.deltaTickResidual = (float) partialClientTick;
-            timer.pausedDeltaTickResidual = (float) partialClientTick;
+            Timer timer = Minecraft.getInstance().timer;
+//            timer.updateFrozenState(frozen);
+//            timer.updatePauseState(false);
+//            timer.deltaTicks = deltaTicksFloat;
+//            timer.realtimeDeltaTicks = deltaTicksFloat;
+//            timer.deltaTickResidual = (float) partialClientTick;
+//            timer.pausedDeltaTickResidual = (float) partialClientTick;
 
-            AccurateEntityPositionHandler.apply(Minecraft.getInstance().level, timer);
+            AccurateEntityPositionHandler.apply(Minecraft.getInstance().level, timer.partialTick);
 
             // Apply keyframes
             if (frozen) {
@@ -343,7 +344,7 @@ public class ExportJob {
                 RenderTarget renderTarget = Minecraft.getInstance().mainRenderTarget;
                 renderTarget.bindWrite(true);
                 RenderSystem.clear(16640, Minecraft.ON_OSX);
-                Minecraft.getInstance().gameRenderer.render(Minecraft.getInstance().timer, true);
+                Minecraft.getInstance().gameRenderer.render(Minecraft.getInstance().timer.partialTick, 0,true);
                 renderTarget.unbindWrite();
 
                 this.shouldChangeFramebufferSize = false;
@@ -369,12 +370,12 @@ public class ExportJob {
 
                 this.updateClientFreeze(frozen);
 
-                timer.updateFrozenState(frozen);
-                timer.updatePauseState(false);
-                timer.deltaTicks = deltaTicksFloat;
-                timer.realtimeDeltaTicks = deltaTicksFloat;
-                timer.deltaTickResidual = (float) partialClientTick;
-                timer.pausedDeltaTickResidual = (float) partialClientTick;
+//                timer.updateFrozenState(frozen);
+//                timer.updatePauseState(false);
+//                timer.deltaTicks = deltaTicksFloat;
+//                timer.realtimeDeltaTicks = deltaTicksFloat;
+//                timer.deltaTickResidual = (float) partialClientTick;
+//                timer.pausedDeltaTickResidual = (float) partialClientTick;
             }
 
             SaveableFramebuffer saveable = downloader.take();
@@ -389,7 +390,7 @@ public class ExportJob {
             RenderSystem.enableCull();
 
             start = System.nanoTime();
-            Minecraft.getInstance().gameRenderer.render(timer, true);
+            Minecraft.getInstance().gameRenderer.render(timer.partialTick, 0,true);
             renderTimeNanos += System.nanoTime() - start;
 
             renderTarget.unbindWrite();
@@ -456,7 +457,7 @@ public class ExportJob {
                     continue;
                 }
 
-                entity.getRandom().setSeed(entitySeed ^ entity.getUUID().getMostSignificantBits());
+                entity.random.setSeed(entitySeed ^ entity.getUUID().getMostSignificantBits());
             }
         }
         if (mathRandom != null) {
@@ -557,7 +558,7 @@ public class ExportJob {
     private void updateClientFreeze(boolean frozen) {
         ClientLevel level = Minecraft.getInstance().level;
         if (level != null) {
-            level.tickRateManager().setFrozen(frozen);
+            TickRateManager.setFrozen(frozen);
         }
     }
 
@@ -604,12 +605,13 @@ public class ExportJob {
                 ShaderInstance shaderInstance = Objects.requireNonNull(minecraft.gameRenderer.blitShader, "Blit shader not loaded");
                 shaderInstance.setSampler("DiffuseSampler", framebuffer.colorTextureId);
                 shaderInstance.apply();
-                BufferBuilder bufferBuilder = RenderSystem.renderThreadTesselator().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLIT_SCREEN);
-                bufferBuilder.addVertex(0.0F, 0.0F, 0.0F);
-                bufferBuilder.addVertex(1.0F, 0.0F, 0.0F);
-                bufferBuilder.addVertex(1.0F, 1.0F, 0.0F);
-                bufferBuilder.addVertex(0.0F, 1.0F, 0.0F);
-                BufferUploader.draw(bufferBuilder.buildOrThrow());
+                BufferBuilder bufferBuilder = RenderSystem.renderThreadTesselator().getBuilder();
+                bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLIT_SCREEN);
+                bufferBuilder.vertex(0.0F, 0.0F, 0.0F);
+                bufferBuilder.vertex(1.0F, 0.0F, 0.0F);
+                bufferBuilder.vertex(1.0F, 1.0F, 0.0F);
+                bufferBuilder.vertex(0.0F, 1.0F, 0.0F);
+                BufferUploader.draw(bufferBuilder.end());
                 shaderInstance.clear();
                 GlStateManager._depthMask(true);
                 GlStateManager._colorMask(true, true, true, true);

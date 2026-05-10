@@ -14,21 +14,21 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 @Pseudo
 @Mixin(value = IntegratedServer.class, priority = 1500)
 public class MixinIntegratedServer {
-    @TargetHandler(
-            mixin = "de.johni0702.minecraft.bobby.mixin.IntegratedServerMixin",
-            name = "bobbyViewDistanceOverwrite"
-    )
-    @Redirect(
-            method = "@MixinSquared:Handler",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lde/johni0702/minecraft/bobby/BobbyConfig;getViewDistanceOverwrite()I"
-            )
-    )
-    public int flashback$overrideViewDistanceOverwrite(BobbyConfig instance) {
-        if (Flashback.isInReplay()) {
-            return 0;//we dont want server distance override
-        }
-        return instance.getViewDistanceOverwrite();
-    }
+//    @TargetHandler(
+//            mixin = "de.johni0702.minecraft.bobby.mixin.IntegratedServerMixin",
+//            name = "bobbyViewDistanceOverwrite"
+//    )
+//    @Redirect(
+//            method = "@MixinSquared:Handler",
+//            at = @At(
+//                    value = "INVOKE",
+//                    target = "Lde/johni0702/minecraft/bobby/BobbyConfig;getViewDistanceOverwrite()I"
+//            )
+//    )
+//    public int flashback$overrideViewDistanceOverwrite(BobbyConfig instance) {
+//        if (Flashback.isInReplay()) {
+//            return 0;//we dont want server distance override
+//        }
+//        return instance.getViewDistanceOverwrite();
+//    }
 }

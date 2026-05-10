@@ -1,5 +1,6 @@
 package com.moulberry.flashback.screen;
 
+import com.moulberry.flashback.Flashback;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -9,7 +10,7 @@ import net.minecraft.resources.ResourceLocation;
 
 public class FlashbackButton extends Button {
 
-    private static final ResourceLocation ICON_PIXELATED = ResourceLocation.parse("flashback:icon_pixelated.png");
+    private static final ResourceLocation ICON_PIXELATED = Flashback.createResourceLocation("icon_pixelated.png");
 
     private final ResourceLocation icon;
 

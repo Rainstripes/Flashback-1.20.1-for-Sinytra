@@ -19,10 +19,10 @@ public class ShaderManager {
 
     public void register() {
         CoreShaderRegistrationCallback.EVENT.register(context -> {
-            context.register(ResourceLocation.parse("flashback:blit_screen_round_alpha"), DefaultVertexFormat.BLIT_SCREEN, shaderInstance -> {
+        context.register(Flashback.createResourceLocation("blit_screen_round_alpha"), DefaultVertexFormat.BLIT_SCREEN, shaderInstance -> {
                 blitScreenRoundAlpha = shaderInstance;
             });
-            context.register(ResourceLocation.parse("flashback:blit_screen_flip"), DefaultVertexFormat.BLIT_SCREEN, shaderInstance -> {
+        context.register(Flashback.createResourceLocation("blit_screen_flip"), DefaultVertexFormat.BLIT_SCREEN, shaderInstance -> {
                 blitScreenFlip = shaderInstance;
             });
         });

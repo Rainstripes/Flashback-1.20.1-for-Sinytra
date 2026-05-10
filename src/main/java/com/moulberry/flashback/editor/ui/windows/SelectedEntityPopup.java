@@ -1,7 +1,6 @@
 package com.moulberry.flashback.editor.ui.windows;
 
 import com.mojang.authlib.GameProfile;
-import com.mojang.authlib.yggdrasil.ProfileResult;
 import com.mojang.blaze3d.platform.Window;
 import com.moulberry.flashback.FilePlayerSkin;
 import com.moulberry.flashback.Flashback;
@@ -26,7 +25,6 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.player.PlayerModelPart;
-import net.minecraft.world.scores.DisplaySlot;
 import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
@@ -120,7 +118,7 @@ public class SelectedEntityPopup {
                     if (ImGui.checkbox(I18n.get("flashback.hide_cape"), true)) {
                         editorState.hideCape.remove(player.getUUID());
                     }
-                } else if (player.isModelPartShown(PlayerModelPart.CAPE) && player.getSkin().capeTexture() != null) {
+                } else if (player.isModelPartShown(PlayerModelPart.CAPE) && player.getPlayerInfo().getCapeLocation() != null) {
                     if (ImGui.checkbox(I18n.get("flashback.hide_cape"), false)) {
                         editorState.hideCape.add(player.getUUID());
                     }
@@ -153,7 +151,7 @@ public class SelectedEntityPopup {
                             editorState.hideTeamPrefix.remove(player.getUUID());
                         }
                     } else {
-                        PlayerTeam team = player.getTeam();
+                        PlayerTeam team = player.getPlayerInfo().getTeam();
                         if (team != null && !Utils.isComponentEmpty(team.getPlayerPrefix())) {
                             if (ImGui.checkbox(I18n.get("flashback.hide_team_prefix"), false)) {
                                 editorState.hideTeamPrefix.add(player.getUUID());
@@ -166,7 +164,7 @@ public class SelectedEntityPopup {
                             editorState.hideTeamSuffix.remove(player.getUUID());
                         }
                     } else {
-                        PlayerTeam team = player.getTeam();
+                        PlayerTeam team = player.getPlayerInfo().getTeam();
                         if (team != null && !Utils.isComponentEmpty(team.getPlayerSuffix())) {
                             if (ImGui.checkbox(I18n.get("flashback.hide_team_suffix"), false)) {
                                 editorState.hideTeamSuffix.add(player.getUUID());
@@ -180,7 +178,7 @@ public class SelectedEntityPopup {
                         }
                     } else {
                         Scoreboard scoreboard = player.getScoreboard();
-                        Objective objective = scoreboard.getDisplayObjective(DisplaySlot.BELOW_NAME);
+                        Objective objective = scoreboard.getDisplayObjective(Scoreboard.DISPLAY_SLOT_BELOW_NAME);
                         if (objective != null) {
                             if (ImGui.checkbox(I18n.get("flashback.hide_text_below_name"), false)) {
                                 editorState.hideBelowName.add(player.getUUID());
@@ -200,9 +198,9 @@ public class SelectedEntityPopup {
                     try {
                         UUID changeSkinUuid = UUID.fromString(string);
                         if (ImGui.button(I18n.get("flashback.apply_skin_from_uuid"))) {
-                            ProfileResult profile = Minecraft.getInstance().getMinecraftSessionService().fetchProfile(changeSkinUuid, true);
-                            editorState.skinOverride.put(entity.getUUID(), profile.profile());
-                            editorState.skinOverrideFromFile.remove(entity.getUUID());
+                            GameProfile profile = new GameProfile(changeSkinUuid, null);
+                            Minecraft.getInstance().getMinecraftSessionService().fillProfileProperties(profile, true);
+                            editorState.skinOverride.put(entity.getUUID(), profile);
                         }
                     } catch (Exception ignored) {}
                 }
@@ -241,7 +239,7 @@ public class SelectedEntityPopup {
                     boolean changed = false;
 
                     for (EquipmentSlot value : EquipmentSlot.values()) {
-                        if (entity instanceof Player && value == EquipmentSlot.BODY) {
+                        if (entity instanceof Player && value == EquipmentSlot.CHEST) {
                             continue;
                         }
 

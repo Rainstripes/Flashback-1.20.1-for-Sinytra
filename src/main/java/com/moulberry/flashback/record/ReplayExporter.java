@@ -14,7 +14,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Iterator;
 import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -146,7 +145,7 @@ public class ReplayExporter {
             }
 
             JsonObject metaObject = GSON.fromJson(metaString, JsonObject.class);
-            if (metaObject.isEmpty()) {
+            if (metaObject.size() == 0) {
                 Flashback.LOGGER.error("Metadata JSON is empty");
                 return null;
             }

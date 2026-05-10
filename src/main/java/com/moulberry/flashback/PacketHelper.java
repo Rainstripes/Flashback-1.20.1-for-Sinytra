@@ -1,6 +1,9 @@
 package com.moulberry.flashback;
 
+import net.minecraft.network.ConnectionProtocol;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket;
@@ -59,17 +62,17 @@ public class PacketHelper {
                 serverEntity.broadcast = packet -> {};
                 serverEntity.entity = entity;
                 serverEntity.positionCodec.setBase(entity.trackingPosition());
-                serverEntity.lastSentMovement = entity.getDeltaMovement();
-                serverEntity.lastSentYRot = Mth.floor((entity.getYRot() * 256.0f / 360.0f));
-                serverEntity.lastSentXRot = Mth.floor((entity.getXRot() * 256.0f / 360.0f));
-                serverEntity.lastSentYHeadRot = Mth.floor((entity.getYHeadRot() * 256.0f / 360.0f));
+                serverEntity.ap = entity.getDeltaMovement();
+                serverEntity.yRotp = Mth.floor((entity.getYRot() * 256.0f / 360.0f));
+                serverEntity.xRotp = Mth.floor((entity.getXRot() * 256.0f / 360.0f));
+                serverEntity.yRotp = Mth.floor((entity.getYHeadRot() * 256.0f / 360.0f));
                 serverEntity.wasOnGround = entity.onGround();
                 serverEntity.trackedDataValues = entity.getEntityData().getNonDefaultValues();
             } catch (Exception e) {}
         }
 
         try {
-            return entity.getAddEntityPacket(serverEntity);
+            return entity.getAddEntityPacket();
         } catch (Exception e) {}
 
         return createAddEntity(entity, 0);
@@ -78,6 +81,28 @@ public class PacketHelper {
     public static ClientboundAddEntityPacket createAddEntity(Entity entity, int data) {
         return new ClientboundAddEntityPacket(entity.getId(), entity.getUUID(), entity.getX(), entity.getY(), entity.getZ(),
                 entity.getXRot(), entity.getYRot(), entity.getType(), data, entity.getDeltaMovement(), entity.getYHeadRot());
+    }
+
+    @SuppressWarnings("unchecked")
+    public static void writeClientboundPacket(FriendlyByteBuf friendlyByteBuf, Packet<? super ClientGamePacketListener> packet) {
+        int id = ConnectionProtocol.PLAY.getPacketId(PacketFlow.CLIENTBOUND, packet);
+        if (id == ConnectionProtocol.NOT_REGISTERED) {
+            throw new IllegalStateException("Unable to serialize unregistered clientbound packet: " + packet.getClass().getName());
+        }
+
+        friendlyByteBuf.writeVarInt(id);
+        ((Packet<ClientGamePacketListener>) packet).write(friendlyByteBuf);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Packet<? super ClientGamePacketListener> readClientboundPacket(FriendlyByteBuf friendlyByteBuf) {
+        int id = friendlyByteBuf.readVarInt();
+        Packet<?> packet = ConnectionProtocol.PLAY.createPacket(PacketFlow.CLIENTBOUND, id, friendlyByteBuf);
+        if (packet == null) {
+            throw new IllegalStateException("Unable to deserialize unknown clientbound packet id " + id);
+        }
+
+        return (Packet<? super ClientGamePacketListener>) packet;
     }
 
 }

@@ -6,7 +6,8 @@ import com.moulberry.flashback.state.EditorStateManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.contents.PlainTextContents;
+import net.minecraft.network.chat.ComponentContents;
+import net.minecraft.network.chat.contents.LiteralContents;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
@@ -197,10 +198,11 @@ public class Utils {
 
         boolean isSelfEmpty = false;
 
-        if (component.getContents() == PlainTextContents.EMPTY) {
+        ComponentContents contents = component.getContents();
+        if (contents == ComponentContents.EMPTY) {
             isSelfEmpty = true;
-        } else if (component.getContents() instanceof PlainTextContents plainTextContents) {
-            isSelfEmpty = ChatFormatting.stripFormatting(plainTextContents.text()).isEmpty();
+        } else if (contents instanceof LiteralContents literalContents) {
+            isSelfEmpty = ChatFormatting.stripFormatting(literalContents.text()).isEmpty();
         }
 
         if (isSelfEmpty) {

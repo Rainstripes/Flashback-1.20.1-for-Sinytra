@@ -137,6 +137,7 @@ accessible field net/minecraft/client/renderer/FogRenderer fogBlue F
 
 # Exporting
 accessible field net/minecraft/client/Minecraft clientTickCount J
+accessible field net/minecraft/client/Minecraft timer Lnet/minecraft/client/Timer;
 accessible field net/minecraft/client/Minecraft timer Lnet/minecraft/client/DeltaTracker$Timer;
 accessible field net/minecraft/client/DeltaTracker$Timer deltaTicks F
 accessible field net/minecraft/client/DeltaTracker$Timer realtimeDeltaTicks F
@@ -187,3 +188,24 @@ accessible field net/minecraft/world/entity/player/Player DATA_PLAYER_MAIN_HAND 
 accessible field net/minecraft/client/resources/language/ClientLanguage storage Ljava/util/Map;
 
 accessible field net/minecraft/world/level/storage/PrimaryLevelData settings Lnet/minecraft/world/level/LevelSettings;
+
+
+
+accessible field net/minecraft/network/syncher/SynchedEntityData itemsById Lit/unimi/dsi/fastutil/ints/Int2ObjectMap;
+accessible class net/minecraft/server/network/ServerLoginPacketListenerImpl$State
+accessible field net/minecraft/server/level/ServerEntity ap Lnet/minecraft/world/phys/Vec3;
+accessible field net/minecraft/server/level/ServerEntity xRotp I
+accessible field net/minecraft/server/level/ServerEntity yRotp I
+accessible field net/minecraft/network/protocol/game/ClientboundRemoveMobEffectPacket entityId I
+accessible field net/minecraft/world/entity/ai/attributes/AttributeMap attributes Ljava/util/Map;
+accessible field net/minecraft/client/Timer msPerTick F
+mutable field net/minecraft/client/Timer msPerTick F
+accessible method net/minecraft/client/gui/screens/Screen clearFocus ()V
+accessible field net/minecraft/world/entity/LivingEntity lerpY D
+accessible field net/minecraft/world/entity/LivingEntity lerpX D
+accessible field net/minecraft/world/entity/LivingEntity lerpZ D
+accessible field net/minecraft/world/entity/LivingEntity lerpXRot D
+accessible field net/minecraft/world/entity/LivingEntity lerpYRot D
+accessible field net/minecraft/world/entity/LivingEntity lyHeadRot D
+accessible field net/minecraft/core/RegistrySynchronization NETWORKABLE_REGISTRIES Ljava/util/Map;
+accessible field net/minecraft/world/entity/Entity random Lnet/minecraft/util/RandomSource;

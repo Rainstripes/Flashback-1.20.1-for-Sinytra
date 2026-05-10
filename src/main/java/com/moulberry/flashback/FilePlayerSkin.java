@@ -4,7 +4,6 @@ import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.resources.DefaultPlayerSkin;
-import net.minecraft.client.resources.PlayerSkin;
 import net.minecraft.resources.ResourceLocation;
 
 import java.io.InputStream;
@@ -34,16 +33,17 @@ public class FilePlayerSkin {
         }
     }
 
-    private transient PlayerSkin playerSkin = null;
+    private transient ResourceLocation skinTexture = null;
+    private transient String modelName = null;
     private final String pathToSkin;
 
     public FilePlayerSkin(String pathToSkin) {
         this.pathToSkin = pathToSkin;
     }
 
-    public PlayerSkin getSkin() {
-        if (this.playerSkin != null) {
-            return this.playerSkin;
+    public ResourceLocation getTextureLocation() {
+        if (this.skinTexture != null) {
+            return this.skinTexture;
         }
 
         Path path = Path.of(this.pathToSkin);
@@ -55,24 +55,34 @@ public class FilePlayerSkin {
 
             // We determine the type using the alpha of the pixel at 54, 20
             int argb = nativeImage.getPixelRGBA(54 * w / 64, 20 * h / 64);
-            PlayerSkin.Model model = PlayerSkin.Model.WIDE;
+            String model = "default";
             if (((argb >> 24) & 0xFF) < 20) {
-                model = PlayerSkin.Model.SLIM;
+                model = "slim";
             }
 
             DynamicTexture dynamicTexture = new DynamicTexture(nativeImage);
 
-            ResourceLocation resourceLocation = ResourceLocation.fromNamespaceAndPath("flashback", "skin_from_file/" + UUID.randomUUID());
+            ResourceLocation resourceLocation = Flashback.createResourceLocation("skin_from_file/" + UUID.randomUUID());
             Minecraft.getInstance().getTextureManager().register(resourceLocation, dynamicTexture);
             GlobalCleaner.INSTANCE.register(this, new CleanState(resourceLocation));
 
-            this.playerSkin = new PlayerSkin(resourceLocation, null, null, null, model, false);
+            this.skinTexture = resourceLocation;
+            this.modelName = model;
         } catch (Exception e) {
             Flashback.LOGGER.error("Unable to load skin from file", e);
-            this.playerSkin = DefaultPlayerSkin.get(UUID.randomUUID());
+            UUID uuid = UUID.randomUUID();
+            this.skinTexture = DefaultPlayerSkin.getDefaultSkin(uuid);
+            this.modelName = DefaultPlayerSkin.getSkinModelName(uuid);
         }
 
-        return this.playerSkin;
+        return this.skinTexture;
+    }
+
+    public String getModelName() {
+        if (this.modelName == null) {
+            this.getTextureLocation();
+        }
+        return this.modelName != null ? this.modelName : "default";
     }
 
 }

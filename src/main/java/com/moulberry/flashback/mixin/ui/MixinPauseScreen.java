@@ -100,7 +100,7 @@ public abstract class MixinPauseScreen extends Screen {
             }
             if (renderable instanceof AbstractWidget otherWidget) {
                 if (useRight) {
-                    int newX = otherWidget.getRight()+4;
+                    int newX = otherWidget.getRectangle().right()+4;
                     if (newX > x) {
                         x = newX;
                         heightSet.clear();
@@ -151,26 +151,26 @@ public abstract class MixinPauseScreen extends Screen {
             this.addRenderableWidget(new FlashbackButton(x, y, 20, 20, Component.translatable("flashback.recording_controls.start"), btn -> {
                 Flashback.startRecordingReplay();
                 Minecraft.getInstance().setScreen(null);
-            }, ResourceLocation.fromNamespaceAndPath("flashback", "icon_pixelated_start.png")).flashbackWithTooltip());
+            }, Flashback.createResourceLocation("icon_pixelated_start.png")).flashbackWithTooltip());
         } else {
             int y = nextHeight.getAsInt();
             this.addRenderableWidget(new FlashbackButton(x, y, 20, 20, Component.translatable("flashback.recording_controls.finish"), btn -> {
                 Flashback.finishRecordingReplay();
                 Minecraft.getInstance().setScreen(null);
-            }, ResourceLocation.fromNamespaceAndPath("flashback", "icon_pixelated_finish.png")).flashbackWithTooltip());
+            }, Flashback.createResourceLocation("icon_pixelated_finish.png")).flashbackWithTooltip());
 
             if (Flashback.RECORDER.isPaused()) {
                 y = nextHeight.getAsInt();
                 this.addRenderableWidget(new FlashbackButton(x, y, 20, 20, Component.translatable("flashback.recording_controls.unpause"), btn -> {
                     Flashback.pauseRecordingReplay(false);
                     Minecraft.getInstance().setScreen(null);
-                }, ResourceLocation.fromNamespaceAndPath("flashback", "icon_pixelated_start.png")).flashbackWithTooltip());
+                }, Flashback.createResourceLocation("icon_pixelated_start.png")).flashbackWithTooltip());
             } else {
                 y = nextHeight.getAsInt();
                 this.addRenderableWidget(new FlashbackButton(x, y, 20, 20, Component.translatable("flashback.recording_controls.pause"), btn -> {
                     Flashback.pauseRecordingReplay(true);
                     Minecraft.getInstance().setScreen(null);
-                }, ResourceLocation.fromNamespaceAndPath("flashback", "icon_pixelated_pause.png")).flashbackWithTooltip());
+                }, Flashback.createResourceLocation("icon_pixelated_pause.png")).flashbackWithTooltip());
             }
 
             y = nextHeight.getAsInt();
@@ -183,7 +183,7 @@ public abstract class MixinPauseScreen extends Screen {
                         Minecraft.getInstance().setScreen(new PauseScreen(true));
                     }
                 }, Component.translatable("flashback.confirm_cancel_recording"), Component.translatable("flashback.confirm_cancel_recording_description")));
-            }, ResourceLocation.fromNamespaceAndPath("flashback", "icon_pixelated_cancel.png")).flashbackWithTooltip());
+            }, Flashback.createResourceLocation("icon_pixelated_cancel.png")).flashbackWithTooltip());
         }
     }
 

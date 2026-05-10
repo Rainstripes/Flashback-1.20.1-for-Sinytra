@@ -44,7 +44,7 @@ public class ReplaySelectionList extends ObjectSelectionList<ReplaySelectionEntr
             String filter, ReplaySorting replaySorting, boolean sortDescending,
             LinkedHashMap<String, LinkedHashSet<String>> currentNamespacesForRegistries,
             @Nullable ReplaySelectionList replaySelectionList) {
-        super(minecraft, i, j, k, l);
+        super(minecraft, i, j, k, k + j, l);
         this.screen = selectReplayScreen;
         this.loadingHeader = new ReplaySelectionEntry.LoadingHeader(minecraft);
         this.loadFromDeviceHeader = new ReplaySelectionEntry.LoadFromDeviceHeader(minecraft);
@@ -90,7 +90,7 @@ public class ReplaySelectionList extends ObjectSelectionList<ReplaySelectionEntr
     }
 
     @Override
-    public void renderWidget(GuiGraphics guiGraphics, int i, int j, float f) {
+    public void render(GuiGraphics guiGraphics, int i, int j, float f) {
         List<PendingSelectionEntry> list = this.pollReplaysIgnoreErrors();
         if (this.currentlyDisplayedReplays != list) {
             if (list == null) {
@@ -102,7 +102,7 @@ public class ReplaySelectionList extends ObjectSelectionList<ReplaySelectionEntr
 
             this.currentlyDisplayedReplays = list;
         }
-        super.renderWidget(guiGraphics, i, j, f);
+        super.render(guiGraphics, i, j, f);
     }
 
     public void updateFilter(String filter, ReplaySorting replaySorting, boolean sortDescending) {
@@ -273,12 +273,12 @@ public class ReplaySelectionList extends ObjectSelectionList<ReplaySelectionEntr
     }
 
     @Override
-    public void updateWidgetNarration(NarrationElementOutput narrationElementOutput) {
+    public void updateNarration(NarrationElementOutput narrationElementOutput) {
         if (this.children().contains(this.loadingHeader)) {
             this.loadingHeader.updateNarration(narrationElementOutput);
             return;
         }
-        super.updateWidgetNarration(narrationElementOutput);
+        super.updateNarration(narrationElementOutput);
     }
 
 }

@@ -24,7 +24,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class MixinEntityRenderDispatcher {
 
     @Shadow
-    private static void renderHitbox(PoseStack poseStack, VertexConsumer vertexConsumer, Entity entity, float f, float g, float h, float i) {
+    private static void renderHitbox(PoseStack poseStack, VertexConsumer vertexConsumer, Entity entity, float f) {
     }
 
     @Inject(method = "shouldRender", at = @At("HEAD"), cancellable = true)
@@ -53,11 +53,11 @@ public abstract class MixinEntityRenderDispatcher {
     public void renderAfter(Entity entity, double d, double e, double f, float g, float h, PoseStack poseStack, MultiBufferSource multiBufferSource, int i, CallbackInfo ci) {
         if (Flashback.isInReplay()) {
             if (ReplayUI.isEntitySelected(entity.getUUID())) {
-                renderHitbox(poseStack, multiBufferSource.getBuffer(RenderType.lines()), entity, h, 1.0f, 1.0f, 0.0f);
+                renderHitbox(poseStack, multiBufferSource.getBuffer(RenderType.lines()), entity, h);
             } else if (!Flashback.isExporting()) {
                 EditorState editorState = EditorStateManager.getCurrent();
                 if (editorState != null && entity.getUUID().equals(editorState.audioSourceEntity)) {
-                    renderHitbox(poseStack, multiBufferSource.getBuffer(RenderType.lines()), entity, h, 0.0f, 1.0f, 0.0f);
+                    renderHitbox(poseStack, multiBufferSource.getBuffer(RenderType.lines()), entity, h);
                 }
             }
         }

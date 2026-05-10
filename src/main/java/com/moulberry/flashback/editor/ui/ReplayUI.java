@@ -1027,7 +1027,7 @@ public class ReplayUI {
         EditorState editorState = EditorStateManager.getCurrent();
 
         if (editorState == null || editorState.replayVisuals.renderBlocks) {
-            ClipContext clipContext = new ClipContext(from, to, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, CollisionContext.empty());
+            ClipContext clipContext = new ClipContext(from, to, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, cameraEntity);
             blockResult = Minecraft.getInstance().level.clip(clipContext);
 
             if (blockResult.getType() != HitResult.Type.MISS) {

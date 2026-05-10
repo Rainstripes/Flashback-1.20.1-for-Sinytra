@@ -7,11 +7,8 @@ import com.moulberry.flashback.action.ActionRegistry;
 import io.netty.buffer.ByteBuf;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
-import it.unimi.dsi.fastutil.ints.IntSet;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 
 public class ReplayReader {
@@ -92,8 +89,8 @@ public class ReplayReader {
 
             int size = this.friendlyByteBuf.readInt();
             ByteBuf slice = this.friendlyByteBuf.readSlice(size);
-            RegistryFriendlyByteBuf registryFriendlyByteBuf = new RegistryFriendlyByteBuf(slice, this.registryAccess);
-            action.handle(replayServer, registryFriendlyByteBuf);
+            FriendlyByteBuf actionFriendlyByteBuf = new FriendlyByteBuf(slice);
+            action.handle(replayServer, actionFriendlyByteBuf);
 
             if (slice.readerIndex() < slice.writerIndex()) {
                 throw new RuntimeException("Action " + this.lastActionName + " failed to fully read. Had " + slice.writerIndex() + " bytes available, only read " + slice.readerIndex());
@@ -126,8 +123,8 @@ public class ReplayReader {
 
         int size = this.friendlyByteBuf.readInt();
         ByteBuf slice = this.friendlyByteBuf.readSlice(size);
-        RegistryFriendlyByteBuf registryFriendlyByteBuf = new RegistryFriendlyByteBuf(slice, this.registryAccess);
-        action.handle(replayServer, registryFriendlyByteBuf);
+            FriendlyByteBuf actionFriendlyByteBuf = new FriendlyByteBuf(slice);
+            action.handle(replayServer, actionFriendlyByteBuf);
 
         if (slice.readerIndex() < slice.writerIndex()) {
             throw new RuntimeException("Action " + this.lastActionName + " failed to fully read. Had " + slice.writerIndex() + " bytes available, only read " + slice.readerIndex());

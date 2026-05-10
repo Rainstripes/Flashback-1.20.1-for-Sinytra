@@ -1,14 +1,9 @@
 package com.moulberry.flashback;
 
-import org.lwjgl.system.Pointer;
-import org.lwjgl.system.jni.JNINativeInterface;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.nio.ByteBuffer;
-import java.util.Objects;
-import java.util.function.LongPredicate;
 
 public class UnsafeWrapper {
 

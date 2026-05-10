@@ -20,27 +20,20 @@ import com.moulberry.flashback.editor.ui.ReplayUI;
 import com.moulberry.flashback.exporting.PerfectFrames;
 import com.moulberry.flashback.visuals.ReplayVisuals;
 import com.moulberry.flashback.visuals.ShaderManager;
-import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.client.Camera;
 import net.minecraft.client.CloudStatus;
-import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.particle.ParticleEngine;
 import net.minecraft.client.particle.Particle;
 import net.minecraft.client.renderer.*;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
-import net.minecraft.client.renderer.chunk.RenderRegionCache;
-import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
-import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleOptions;
-import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.TickRateManager;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Final;
@@ -57,12 +50,6 @@ import java.util.Objects;
 @Mixin(value = LevelRenderer.class, priority = 1100)
 public abstract class MixinLevelRenderer {
 
-    @Shadow @Final public ObjectArrayList<SectionRenderDispatcher.RenderSection> visibleSections;
-
-    @Shadow private @Nullable SectionRenderDispatcher sectionRenderDispatcher;
-
-    @Shadow @Final public SectionOcclusionGraph sectionOcclusionGraph;
-
     @Shadow
     private int ticks;
 
@@ -74,17 +61,9 @@ public abstract class MixinLevelRenderer {
         }
     }
 
-    @WrapOperation(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/TickRateManager;runsNormally()Z"))
-    public boolean tick_runsNormally(TickRateManager instance, Operation<Boolean> original) {
-        if (Flashback.isInReplay()) {
-            return false;
-        }
-        return original.call(instance);
-    }
-
     @Inject(method = "renderLevel", at = @At("HEAD"))
-    public void renderLevel(DeltaTracker deltaTracker, boolean bl, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f matrix4f, Matrix4f projection, CallbackInfo ci) {
-        ReplayUI.lastProjectionMatrix = projection;
+    public void renderLevel(PoseStack poseStack, float f, long l, boolean bl, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f matrix4f, CallbackInfo ci) {
+        ReplayUI.lastProjectionMatrix = matrix4f;
         ReplayUI.lastViewQuaternion = camera.rotation();
     }
 
@@ -98,8 +77,8 @@ public abstract class MixinLevelRenderer {
         }
     }
 
-    @Inject(method = "renderSectionLayer", at = @At("HEAD"), cancellable = true, require = 0)
-    public void renderSectionLayer(RenderType renderType, double d, double e, double f, Matrix4f matrix4f, Matrix4f matrix4f2, CallbackInfo ci) {
+    @Inject(method = "renderChunkLayer", at = @At("HEAD"), cancellable = true, require = 0)
+    public void renderSectionLayer(RenderType renderType, PoseStack poseStack, double d, double e, double f, Matrix4f matrix4f, CallbackInfo ci) {
         EditorState editorState = EditorStateManager.getCurrent();
         if (editorState != null) {
             if (!editorState.replayVisuals.renderBlocks) {
@@ -108,8 +87,8 @@ public abstract class MixinLevelRenderer {
         }
     }
 
-    @Inject(method = "renderLevel", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/LevelRenderer;renderSectionLayer(Lnet/minecraft/client/renderer/RenderType;DDDLorg/joml/Matrix4f;Lorg/joml/Matrix4f;)V", ordinal = 2, shift = At.Shift.AFTER), require = 0)
-    public void renderLevel_renderCutoutLayer(DeltaTracker deltaTracker, boolean bl, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f matrix4f, Matrix4f matrix4f2, CallbackInfo ci) {
+    @Inject(method = "renderLevel", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/LevelRenderer;renderChunkLayer(Lnet/minecraft/client/renderer/RenderType;Lcom/mojang/blaze3d/vertex/PoseStack;DDDLorg/joml/Matrix4f;)V", ordinal = 2, shift = At.Shift.AFTER), require = 0)
+    public void renderLevel_renderCutoutLayer(PoseStack poseStack, float f, long l, boolean bl, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f matrix4f, CallbackInfo ci) {
         if (Flashback.isExporting() && Flashback.EXPORT_JOB.getSettings().transparent()) {
             RenderTarget main = Minecraft.getInstance().mainRenderTarget;
 
@@ -130,12 +109,13 @@ public abstract class MixinLevelRenderer {
             ShaderInstance shaderInstance = Objects.requireNonNull(ShaderManager.blitScreenRoundAlpha, "Blit shader not loaded");
             shaderInstance.setSampler("DiffuseSampler", main.colorTextureId);
             shaderInstance.apply();
-            BufferBuilder bufferBuilder = RenderSystem.renderThreadTesselator().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLIT_SCREEN);
-            bufferBuilder.addVertex(0.0f, 0.0f, 0.0f);
-            bufferBuilder.addVertex(1.0f, 0.0f, 0.0f);
-            bufferBuilder.addVertex(1.0f, 1.0f, 0.0f);
-            bufferBuilder.addVertex(0.0f, 1.0f, 0.0f);
-            BufferUploader.draw(bufferBuilder.buildOrThrow());
+            BufferBuilder bufferBuilder = RenderSystem.renderThreadTesselator().getBuilder();
+            bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLIT_SCREEN);
+            bufferBuilder.vertex(0.0f, 0.0f, 0.0f);
+            bufferBuilder.vertex(1.0f, 0.0f, 0.0f);
+            bufferBuilder.vertex(1.0f, 1.0f, 0.0f);
+            bufferBuilder.vertex(0.0f, 1.0f, 0.0f);
+            BufferUploader.draw(bufferBuilder.end());
             shaderInstance.clear();
 
             main.bindWrite(true);
@@ -148,7 +128,7 @@ public abstract class MixinLevelRenderer {
     }
 
     @Inject(method = "renderLevel", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/FogRenderer;levelFogColor()V", shift = At.Shift.AFTER), require = 0)
-    public void renderLevel_levelFogColor(DeltaTracker deltaTracker, boolean bl, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f matrix4f, Matrix4f matrix4f2, CallbackInfo ci) {
+    public void renderLevel_levelFogColor(PoseStack poseStack, float f, long l, boolean bl, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f matrix4f, CallbackInfo ci) {
         EditorState editorState = EditorStateManager.getCurrent();
         if (editorState != null) {
             ReplayVisuals visuals = editorState.replayVisuals;
@@ -235,8 +215,8 @@ public abstract class MixinLevelRenderer {
         }
     }
 
-    @WrapWithCondition(method = "renderLevel", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/particle/ParticleEngine;render(Lnet/minecraft/client/renderer/LightTexture;Lnet/minecraft/client/Camera;F)V"), require = 0)
-    public boolean renderLevel_renderParticles(ParticleEngine instance, LightTexture lightTexture, Camera camera, float f) {
+    @WrapWithCondition(method = "renderLevel", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/particle/ParticleEngine;render(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource$BufferSource;Lnet/minecraft/client/renderer/LightTexture;Lnet/minecraft/client/Camera;F)V"), require = 0)
+    public boolean renderLevel_renderParticles(ParticleEngine instance, PoseStack poseStack, MultiBufferSource.BufferSource bufferSource, LightTexture lightTexture, Camera camera, float f) {
         EditorState editorState = EditorStateManager.getCurrent();
         return editorState == null || editorState.replayVisuals.renderParticles;
     }
@@ -249,8 +229,8 @@ public abstract class MixinLevelRenderer {
         }
     }
 
-    @WrapWithCondition(method = "renderLevel", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/LevelRenderer;renderSky(Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;FLnet/minecraft/client/Camera;ZLjava/lang/Runnable;)V"), require = 0)
-    public boolean renderLevel_renderSky(LevelRenderer instance, Matrix4f matrix4f, Matrix4f matrix4f2, float f, Camera camera, boolean bl, Runnable runnable) {
+    @WrapWithCondition(method = "renderLevel", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/LevelRenderer;renderSky(Lcom/mojang/blaze3d/vertex/PoseStack;Lorg/joml/Matrix4f;FLnet/minecraft/client/Camera;ZLjava/lang/Runnable;)V"), require = 0)
+    public boolean renderLevel_renderSky(LevelRenderer instance, PoseStack poseStack, Matrix4f matrix4f, float f, Camera camera, boolean bl, Runnable runnable) {
         EditorState editorState = EditorStateManager.getCurrent();
         return editorState == null || editorState.replayVisuals.renderSky;
     }
