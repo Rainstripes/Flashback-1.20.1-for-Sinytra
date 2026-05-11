@@ -3,6 +3,7 @@ package com.moulberry.flashback.mixin;
 import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.llamalad7.mixinextras.sugar.ref.LocalIntRef;
 import com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService;
 import com.llamalad7.mixinextras.sugar.Local;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -73,39 +74,7 @@ public abstract class MixinMinecraft implements MinecraftExt {
     private AtomicReference<StoringChunkProgressListener> progressListener;
 
     @Shadow
-    @Final
-    private YggdrasilAuthenticationService authenticationService;
-
-    @Shadow
-    @Final
-    public File gameDirectory;
-
-    @Shadow
-    private @Nullable IntegratedServer singleplayerServer;
-
-    @Shadow
-    private boolean isLocalServer;
-
-    @Shadow
-    public abstract void updateReportEnvironment(ReportEnvironment reportEnvironment);
-
-    @Shadow
     public abstract void setScreen(@Nullable Screen screen);
-
-    @Shadow
-    private ProfilerFiller profiler;
-
-    @Shadow
-    private @Nullable Overlay overlay;
-
-    @Shadow
-    protected abstract void runTick(boolean bl);
-
-    @Shadow
-    public abstract User getUser();
-
-    @Shadow
-    private @Nullable Connection pendingConnection;
 
     @Shadow
     @Final
@@ -118,10 +87,6 @@ public abstract class MixinMinecraft implements MinecraftExt {
     @Shadow
     @Nullable
     public LocalPlayer player;
-
-    @Shadow
-    @Final
-    public ParticleEngine particleEngine;
 
     @Shadow
     @Nullable
@@ -235,6 +200,17 @@ public abstract class MixinMinecraft implements MinecraftExt {
         return this.replayTimer;
     }
 
+    @Inject(method = "clearLevel(Lnet/minecraft/client/gui/screens/Screen;)V", at = @At("HEAD"))
+    public void disconnectHead(Screen screen, CallbackInfo ci) {
+        try {
+            if (Flashback.getConfig().recordingControls.automaticallyFinish && Flashback.RECORDER != null) {
+                Flashback.finishRecordingReplay();
+            }
+        } catch (Exception e) {
+            Flashback.LOGGER.error("Failed to finish replay on disconnect", e);
+        }
+    }
+
     @Inject(method = "clearLevel(Lnet/minecraft/client/gui/screens/Screen;)V", at = @At("RETURN"))
     public void disconnectReturn(Screen screen, CallbackInfo ci) {
         Flashback.updateIsInReplay();
@@ -244,7 +220,7 @@ public abstract class MixinMinecraft implements MinecraftExt {
     private final Timer localPlayerTimer = new Timer(20.0f, 0);
 
     @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;runAllTasks()V", shift = At.Shift.AFTER))
-    public void runTick_runAllTasks(boolean runTick, CallbackInfo ci, @Local com.llamalad7.mixinextras.sugar.ref.LocalIntRef i) {
+    public void runTick_runAllTasks(boolean runTick, CallbackInfo ci, @Local LocalIntRef i) {
         if (ExportJobQueue.drainingQueue) {
             if (ExportJobQueue.queuedJobs.isEmpty()) {
                 ExportJobQueue.drainingQueue = false;
@@ -264,12 +240,16 @@ public abstract class MixinMinecraft implements MinecraftExt {
         }
 
         if (Flashback.isInReplay()) {
-            i.set(this.replayTimer.advanceTime(Util.getMillis()));
-            this.timer.tickDelta = this.replayTimer.tickDelta;
-            this.timer.partialTick = this.replayTimer.manager.runsNormally() ? this.replayTimer.partialTick : 1.0F;
+            i.set(replayTimer.advanceTime(Util.getMillis()));
+            timer.tickDelta = replayTimer.tickDelta;
+            if (!replayTimer.manager.runsNormally()) {
+                timer.partialTick = 1.0F;
+            } else {
+                timer.partialTick = replayTimer.partialTick;
+            }
 
-            int localPlayerTicks = this.localPlayerTimer.advanceTime(Util.getMillis());
-            if (this.flashback$overridingLocalPlayerTimer()) {
+            int localPlayerTicks = localPlayerTimer.advanceTime(Util.getMillis());
+            if (this.level != null && this.player != null && !this.player.isPassenger() && !this.player.isRemoved()) {
                 localPlayerTicks = Math.min(10, localPlayerTicks);
                 for (int j = 0; j < localPlayerTicks; j++) {
                     this.level.guardEntityTick(this.level::tickNonPassenger, this.player);
@@ -282,7 +262,11 @@ public abstract class MixinMinecraft implements MinecraftExt {
     public void tick_tickRateManager(CallbackInfo ci) {
         if (Flashback.isInReplay()) {
             this.replayTimer.manager.tick();
-            this.timer.partialTick = this.replayTimer.manager.runsNormally() ? this.replayTimer.partialTick : 1.0F;
+            if (!replayTimer.manager.runsNormally()) {
+                timer.partialTick = 1.0F;
+            } else {
+                timer.partialTick = replayTimer.partialTick;
+            }
         }
     }
 

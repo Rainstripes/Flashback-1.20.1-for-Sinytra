@@ -110,11 +110,11 @@ public abstract class MixinLevelRenderer {
             shaderInstance.setSampler("DiffuseSampler", main.colorTextureId);
             shaderInstance.apply();
             BufferBuilder bufferBuilder = RenderSystem.renderThreadTesselator().getBuilder();
-            bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLIT_SCREEN);
-            bufferBuilder.vertex(0.0f, 0.0f, 0.0f);
-            bufferBuilder.vertex(1.0f, 0.0f, 0.0f);
-            bufferBuilder.vertex(1.0f, 1.0f, 0.0f);
-            bufferBuilder.vertex(0.0f, 1.0f, 0.0f);
+            bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+            bufferBuilder.vertex(0.0, (double)main.height, 0.0).uv(0.0F, 0.0F).color(255, 255, 255, 255).endVertex();
+            bufferBuilder.vertex((double)main.width, (double)main.height, 0.0).uv(1.0F, 0.0F).color(255, 255, 255, 255).endVertex();
+            bufferBuilder.vertex((double)main.width, 0.0, 0.0).uv(1.0F, 1.0F).color(255, 255, 255, 255).endVertex();
+            bufferBuilder.vertex(0.0, 0.0, 0.0).uv(0.0F, 1.0F).color(255, 255, 255, 255).endVertex();
             BufferUploader.draw(bufferBuilder.end());
             shaderInstance.clear();
 

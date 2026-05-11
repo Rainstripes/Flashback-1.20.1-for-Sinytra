@@ -28,6 +28,11 @@ public class IgnoredPacketSet {
         ClientboundSoundPacket.class,
         ClientboundSoundEntityPacket.class,
 
+        // Common
+        ClientboundDisconnectPacket.class,
+        ClientboundPingPacket.class,
+        ClientboundKeepAlivePacket.class,
+
         // Game
         ClientboundAwardStatsPacket.class,
         ClientboundRecipePacket.class,
