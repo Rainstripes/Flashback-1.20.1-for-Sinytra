@@ -983,7 +983,7 @@ public class ReplayServer extends IntegratedServer {
             for (ReplayPlayer replayViewer : this.replayViewers) {
                 ServerPlayNetworking.send(replayViewer, FinishedServerTick.INSTANCE);
             }
-            if (this.replayViewers.isEmpty() && Flashback.EXPORT_JOB != null) {
+            if (Flashback.EXPORT_JOB != null) {
                 Flashback.EXPORT_JOB.onFinishedServerTick();
             }
         }
@@ -1116,29 +1116,30 @@ public class ReplayServer extends IntegratedServer {
             this.needsPositionUpdate.clear();
         }
 
-        if (Flashback.EXPORT_JOB == null) {
-            if (this.processedSnapshot) {
-                this.processedSnapshot = false;
+        if (this.processedSnapshot) {
+            this.processedSnapshot = false;
 
-                for (ReplayPlayer replayViewer : this.replayViewers) {
-                    for (long chunk : replayViewer.pendingChunks) {
-                        ChunkPos pos = new ChunkPos(chunk);
-                        ServerLevel level = replayViewer.serverLevel();
-                        replayViewer.trackChunk(pos, new ClientboundLevelChunkWithLightPacket(level.getChunk(pos.x, pos.z), level.getLightEngine(), null, null));
-                    }
-                    ServerPlayNetworking.send(replayViewer, FlashbackInstantlyLerp.INSTANCE);
-                    ServerPlayNetworking.send(replayViewer, FlashbackClearParticles.INSTANCE);
+            for (ReplayPlayer replayViewer : this.replayViewers) {
+                for (long chunk : replayViewer.pendingChunks) {
+                    ChunkPos pos = new ChunkPos(chunk);
+                    ServerLevel level = replayViewer.serverLevel();
+                    replayViewer.trackChunk(pos, new ClientboundLevelChunkWithLightPacket(level.getChunk(pos.x, pos.z), level.getLightEngine(), null, null));
                 }
-                for (ServerLevel level : this.getAllLevels()) {
-                    for (ServerPlayer player : level.players()) {
-                        if (player instanceof ReplayPlayer) {
-                            // Called twice, first one will update the chunk tracking & second one will update the entity tracking
-                            level.getChunkSource().move(player);
-                            level.getChunkSource().move(player);
-                        }
+                ServerPlayNetworking.send(replayViewer, FlashbackInstantlyLerp.INSTANCE);
+                ServerPlayNetworking.send(replayViewer, FlashbackClearParticles.INSTANCE);
+            }
+            for (ServerLevel level : this.getAllLevels()) {
+                for (ServerPlayer player : level.players()) {
+                    if (player instanceof ReplayPlayer) {
+                        // Called twice, first one will update the chunk tracking & second one will update the entity tracking
+                        level.getChunkSource().move(player);
+                        level.getChunkSource().move(player);
                     }
                 }
             }
+        }
+
+        if (Flashback.EXPORT_JOB == null) {
 
             if (this.replayPaused) {
                 if (tickChanged) {

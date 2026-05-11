@@ -35,6 +35,12 @@ import static org.bytedeco.ffmpeg.global.swscale.sws_freeContext;
 
 public class AsyncFFmpegVideoWriter implements AutoCloseable, VideoWriter {
 
+    private static final long MIB = 1024L * 1024L;
+    private static final long SUBMIT_QUEUE_TARGET_BYTES = 256L * MIB;
+    private static final long ENCODE_QUEUE_TARGET_BYTES = 256L * MIB;
+    private static final long RESCALE_QUEUE_TARGET_BYTES = 96L * MIB;
+
+    private final ArrayBlockingQueue<ImageFrame> submitQueue;
     @Nullable
     private final ArrayBlockingQueue<ImageFrame> rescaleQueue;
     private final ArrayBlockingQueue<ImageFrame> encodeQueue;
@@ -42,8 +48,10 @@ public class AsyncFFmpegVideoWriter implements AutoCloseable, VideoWriter {
     @Nullable
     private final ArrayBlockingQueue<Long> reusePictureData;
 
+    private final AtomicBoolean finishSubmitThread = new AtomicBoolean(false);
     private final AtomicBoolean finishRescaleThread = new AtomicBoolean(false);
     private final AtomicBoolean finishEncodeThread = new AtomicBoolean(false);
+    private final AtomicBoolean finishedSubmitting = new AtomicBoolean(false);
     private final AtomicBoolean finishedWriting = new AtomicBoolean(false);
 
     private final AtomicReference<Throwable> threadedError = new AtomicReference<>(null);
@@ -91,6 +99,8 @@ public class AsyncFFmpegVideoWriter implements AutoCloseable, VideoWriter {
             int dstPixelFormat = PixelFormatHelper.getBestPixelFormat(settings.encoder(), wantTransparency);
             Flashback.LOGGER.info("Encoding video with pixel format {}", PixelFormatHelper.pixelFormatToString(dstPixelFormat));
             boolean needsRescale = ExportJob.SRC_PIXEL_FORMAT != dstPixelFormat;
+            int srcFrameSize = (int) Math.max(1L, (long) settings.resolutionX() * settings.resolutionY() * 4L);
+            int dstFrameSize = Math.max(1, av_image_get_buffer_size(dstPixelFormat, width, height, 1));
 
             int audioChannels = 0;
             if (settings.recordAudio()) {
@@ -120,19 +130,88 @@ public class AsyncFFmpegVideoWriter implements AutoCloseable, VideoWriter {
 
             recorder.start();
 
-            this.encodeQueue = new ArrayBlockingQueue<>(needsRescale ? 24 : 32);
-            this.rescaleQueue = needsRescale ? new ArrayBlockingQueue<>(8) : null;
-            this.reusePictureData = needsRescale ? new ArrayBlockingQueue<>(32) : null;
+            int submitQueueCapacity = queueCapacityForBytes(srcFrameSize, SUBMIT_QUEUE_TARGET_BYTES, 6, 24);
+            int encodeQueueCapacity = queueCapacityForBytes(needsRescale ? dstFrameSize : srcFrameSize, ENCODE_QUEUE_TARGET_BYTES, 6, 24);
+            int rescaleQueueCapacity = needsRescale ? queueCapacityForBytes(srcFrameSize, RESCALE_QUEUE_TARGET_BYTES, 3, 8) : 0;
+
+            this.submitQueue = new ArrayBlockingQueue<>(submitQueueCapacity);
+            this.encodeQueue = new ArrayBlockingQueue<>(encodeQueueCapacity);
+            this.rescaleQueue = needsRescale ? new ArrayBlockingQueue<>(rescaleQueueCapacity) : null;
+            this.reusePictureData = needsRescale ? new ArrayBlockingQueue<>(encodeQueueCapacity) : null;
+
+            Flashback.LOGGER.info("Using export queues submit={}, rescale={}, encode={} for encoder {}",
+                    submitQueueCapacity, needsRescale ? rescaleQueueCapacity : 0, encodeQueueCapacity, settings.encoder());
 
             Thread encodeThread = createEncodeThread(recorder);
+            Thread submitThread = createSubmitThread();
             if (needsRescale) {
                 Thread rescaleThread = createRescaleThread(width, height, dstPixelFormat);
                 rescaleThread.start();
             }
             encodeThread.start();
+            submitThread.start();
         } catch (IOException e) {
             throw SneakyThrow.sneakyThrow(e);
         }
+    }
+
+    private static int queueCapacityForBytes(long frameBytes, long targetBytes, int minCapacity, int maxCapacity) {
+        long safeFrameBytes = Math.max(1L, frameBytes);
+        long capacity = Math.max(minCapacity, targetBytes / safeFrameBytes);
+        return (int) Math.max(minCapacity, Math.min(maxCapacity, capacity));
+    }
+
+    private @NotNull Thread createSubmitThread() {
+        Thread submitThread = new Thread(() -> {
+            while (true) {
+                ImageFrame src = null;
+
+                try {
+                    src = this.submitQueue.poll(10, TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    throw SneakyThrow.sneakyThrow(e);
+                }
+
+                try {
+                    if (src == null) {
+                        if (this.finishSubmitThread.get()) {
+                            this.finishedSubmitting.set(true);
+                            if (this.rescaleQueue != null) {
+                                this.finishRescaleThread.set(true);
+                            } else {
+                                this.finishEncodeThread.set(true);
+                            }
+                            return;
+                        } else {
+                            continue;
+                        }
+                    }
+
+                    ArrayBlockingQueue<ImageFrame> outputQueue = this.rescaleQueue != null ? this.rescaleQueue : this.encodeQueue;
+                    while (!outputQueue.offer(src, 10, TimeUnit.MILLISECONDS)) {
+                        checkEncodeError(src);
+                        if (this.finishRescaleThread.get() || this.finishEncodeThread.get()) {
+                            return;
+                        }
+                    }
+                    src = null;
+                } catch (Throwable t) {
+                    this.threadedError.set(t);
+                    this.finishSubmitThread.set(true);
+                    this.finishRescaleThread.set(true);
+                    this.finishEncodeThread.set(true);
+                    this.finishedSubmitting.set(true);
+                    this.finishedWriting.set(true);
+                    return;
+                } finally {
+                    if (src != null) {
+                        src.close();
+                    }
+                }
+            }
+        });
+        submitThread.setName("Video Submit Thread");
+        return submitThread;
     }
 
     private @NotNull Thread createEncodeThread(FFmpegFrameRecorder recorder) {
@@ -179,6 +258,7 @@ public class AsyncFFmpegVideoWriter implements AutoCloseable, VideoWriter {
                         e.printStackTrace();
                     }
                     this.threadedError.set(t);
+                    this.finishSubmitThread.set(true);
                     this.finishRescaleThread.set(true);
                     this.finishEncodeThread.set(true);
                     this.finishedWriting.set(true);
@@ -216,7 +296,7 @@ public class AsyncFFmpegVideoWriter implements AutoCloseable, VideoWriter {
         PointerPointer<AVFrame> tmp_picture_ptr = new PointerPointer<>(tmp_picture);
         PointerPointer<AVFrame> picture_ptr = new PointerPointer<>(picture);
 
-        Flashback.LOGGER.info("Rescaling to pixel format: {}", dstPixelFormat);
+        Flashback.LOGGER.info("Rescaling to pixel format {}", PixelFormatHelper.pixelFormatToString(dstPixelFormat));
 
         boolean useItu709Colorspace = PixelFormatHelper.isYuvFormat(dstPixelFormat);
 
@@ -301,6 +381,7 @@ public class AsyncFFmpegVideoWriter implements AutoCloseable, VideoWriter {
                     }
 
                     this.threadedError.set(t);
+                    this.finishSubmitThread.set(true);
                     this.finishRescaleThread.set(true);
                     this.finishEncodeThread.set(true);
                     this.finishedWriting.set(true);
@@ -315,8 +396,10 @@ public class AsyncFFmpegVideoWriter implements AutoCloseable, VideoWriter {
     private void checkEncodeError(@Nullable AutoCloseable closeable) {
         Throwable t = this.threadedError.get();
         if (t != null) {
+            this.finishSubmitThread.set(true);
             this.finishRescaleThread.set(true);
             this.finishEncodeThread.set(true);
+            this.finishedSubmitting.set(true);
             this.finishedWriting.set(true);
 
             if (closeable != null) {
@@ -333,7 +416,7 @@ public class AsyncFFmpegVideoWriter implements AutoCloseable, VideoWriter {
     public void encode(NativeImage src, @Nullable FloatBuffer audioBuffer) {
         checkEncodeError(src);
 
-        if (this.finishRescaleThread.get() || this.finishEncodeThread.get() || this.finishedWriting.get()) {
+        if (this.finishSubmitThread.get() || this.finishRescaleThread.get() || this.finishEncodeThread.get() || this.finishedWriting.get()) {
             src.close();
             throw new IllegalStateException("Cannot encode after finish()");
         }
@@ -342,12 +425,9 @@ public class AsyncFFmpegVideoWriter implements AutoCloseable, VideoWriter {
             try {
                 ImageFrame imageFrame = new ImageFrame(src.pixels, (int) src.size, src.getWidth(), src.getHeight(),
                         4, Frame.DEPTH_INT, src.getWidth(), ExportJob.SRC_PIXEL_FORMAT, audioBuffer);
-                if (this.rescaleQueue != null) {
-                    this.rescaleQueue.put(imageFrame);
-                } else {
-                    this.encodeQueue.put(imageFrame);
+                if (this.submitQueue.offer(imageFrame, 10, TimeUnit.MILLISECONDS)) {
+                    break;
                 }
-                break;
             } catch (InterruptedException ignored) {}
             checkEncodeError(src);
         }
@@ -356,20 +436,16 @@ public class AsyncFFmpegVideoWriter implements AutoCloseable, VideoWriter {
     public void finish() {
         checkEncodeError(null);
 
-        if (this.rescaleQueue != null) {
-            while (!this.rescaleQueue.isEmpty()) {
-                checkEncodeError(null);
-                LockSupport.parkNanos("waiting for rescale queue to empty", 100000L);
-            }
-        }
-        while (!this.encodeQueue.isEmpty()) {
+        while (!this.submitQueue.isEmpty()) {
             checkEncodeError(null);
-            LockSupport.parkNanos("waiting for encode queue to empty", 100000L);
+            LockSupport.parkNanos("waiting for submit queue to empty", 100000L);
         }
 
-        this.finishRescaleThread.set(true);
-        if (this.rescaleQueue == null) {
-            this.finishEncodeThread.set(true);
+        this.finishSubmitThread.set(true);
+
+        while (!this.finishedSubmitting.get()) {
+            checkEncodeError(null);
+            LockSupport.parkNanos("waiting for submit thread to finish", 100000L);
         }
 
         while (!this.finishedWriting.get()) {
@@ -381,6 +457,9 @@ public class AsyncFFmpegVideoWriter implements AutoCloseable, VideoWriter {
 
     @Override
     public void close() {
+        for (ImageFrame src : this.submitQueue) {
+            src.close();
+        }
         if (this.rescaleQueue != null) {
             for (ImageFrame src : this.rescaleQueue) {
                 src.close();
@@ -390,6 +469,7 @@ public class AsyncFFmpegVideoWriter implements AutoCloseable, VideoWriter {
             src.close();
         }
 
+        this.finishSubmitThread.set(true);
         this.finishRescaleThread.set(true);
         this.finishEncodeThread.set(true);
 

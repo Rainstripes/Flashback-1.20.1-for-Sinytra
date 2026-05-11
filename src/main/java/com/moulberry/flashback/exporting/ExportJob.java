@@ -308,7 +308,8 @@ public class ExportJob {
             Timer timer = Minecraft.getInstance().timer;
 //            timer.updateFrozenState(frozen);
 //            timer.updatePauseState(false);
-//            timer.deltaTicks = deltaTicksFloat;
+            timer.tickDelta = deltaTicksFloat;
+            timer.partialTick = (float) partialClientTick;
 //            timer.realtimeDeltaTicks = deltaTicksFloat;
 //            timer.deltaTickResidual = (float) partialClientTick;
 //            timer.pausedDeltaTickResidual = (float) partialClientTick;
@@ -523,7 +524,16 @@ public class ExportJob {
             replayServer.replayPaused = true;
             replayServer.sendFinishedServerTick.set(true);
 
+            long startWaitNanos = System.nanoTime();
+            boolean loggedLongWait = false;
             while (!this.finishedServerTick.compareAndExchange(true, false)) {
+                while (Minecraft.getInstance().pollTask()) {}
+
+                if (!loggedLongWait && System.nanoTime() - startWaitNanos > 5_000_000_000L) {
+                    loggedLongWait = true;
+                    Flashback.LOGGER.warn("Still waiting for replay server tick {} while exporting", targetTick);
+                }
+
                 LockSupport.parkNanos("waiting for server thread", 100000L);
             }
         }
@@ -604,6 +614,16 @@ public class ExportJob {
                 Minecraft minecraft = Minecraft.getInstance();
                 ShaderInstance shaderInstance = Objects.requireNonNull(minecraft.gameRenderer.blitShader, "Blit shader not loaded");
                 shaderInstance.setSampler("DiffuseSampler", framebuffer.colorTextureId);
+
+                Matrix4f matrix4f = (new Matrix4f()).setOrtho(0.0F, window.getWidth(), window.getHeight(), 0.0F, 1000.0F, 3000.0F);
+                RenderSystem.setProjectionMatrix(matrix4f, VertexSorting.ORTHOGRAPHIC_Z);
+                if (shaderInstance.MODEL_VIEW_MATRIX != null) {
+                    shaderInstance.MODEL_VIEW_MATRIX.set((new Matrix4f()).translation(0.0F, 0.0F, -2000.0F));
+                }
+                if (shaderInstance.PROJECTION_MATRIX != null) {
+                    shaderInstance.PROJECTION_MATRIX.set(matrix4f);
+                }
+
                 shaderInstance.apply();
                 BufferBuilder bufferBuilder = RenderSystem.renderThreadTesselator().getBuilder();
                 float f = (float) window.getWidth();

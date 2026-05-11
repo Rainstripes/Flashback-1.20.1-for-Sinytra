@@ -6,13 +6,12 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.platform.TextureUtil;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.BufferUploader;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.*;
 import com.moulberry.flashback.visuals.ShaderManager;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Matrix4f;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
 
@@ -66,8 +65,19 @@ public class SaveableFramebufferQueue implements AutoCloseable {
         RenderSystem.disableCull();
 
         this.flipBuffer.bindWrite(true);
-        ShaderInstance flipShader = ShaderManager.blitScreenFlip;
+
+        ShaderInstance flipShader = Objects.requireNonNull(Minecraft.getInstance().gameRenderer.blitShader, "Blit shader not loaded");
         flipShader.setSampler("DiffuseSampler", src.colorTextureId);
+
+        Matrix4f matrix4f = (new Matrix4f()).setOrtho(0.0F, src.width, 0.0F, src.height, 1000.0F, 3000.0F); // Флипаем по Y
+        RenderSystem.setProjectionMatrix(matrix4f, VertexSorting.ORTHOGRAPHIC_Z);
+        if (flipShader.MODEL_VIEW_MATRIX != null) {
+            flipShader.MODEL_VIEW_MATRIX.set((new Matrix4f()).translation(0.0F, 0.0F, -2000.0F));
+        }
+        if (flipShader.PROJECTION_MATRIX != null) {
+            flipShader.PROJECTION_MATRIX.set(matrix4f);
+        }
+
         flipShader.apply();
         BufferBuilder bufferBuilder = RenderSystem.renderThreadTesselator().getBuilder();
         float f = (float) src.width;
