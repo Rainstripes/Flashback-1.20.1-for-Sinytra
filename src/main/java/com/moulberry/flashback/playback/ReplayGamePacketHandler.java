@@ -1132,8 +1132,17 @@ public class ReplayGamePacketHandler implements ClientGamePacketListener {
         Entity entity = this.getEntityOrPending(clientboundSetEntityDataPacket.id());
         forward(entity, clientboundSetEntityDataPacket);
 
-        if (entity != null) {
-            entity.getEntityData().assignValues(clientboundSetEntityDataPacket.packedItems());
+        if (entity == null) {
+            return;
+        }
+
+        // Note: SynchedEntityData#assignValues isn't used because it doesn't mark the value as dirty
+        SynchedEntityData entityData = entity.getEntityData();
+        for (SynchedEntityData.DataValue<?> dataValue : clientboundSetEntityDataPacket.packedItems()) {
+            SynchedEntityData.DataItem<?> dataItem = entityData.itemsById.get(dataValue.id());
+            if (dataItem != null) {
+                entityData.set((EntityDataAccessor) dataItem.getAccessor(), dataValue.value(), true);
+            }
         }
     }
 
@@ -1147,6 +1156,7 @@ public class ReplayGamePacketHandler implements ClientGamePacketListener {
             double motionY = clientboundSetEntityMotionPacket.getYa();
             double motionZ = clientboundSetEntityMotionPacket.getZa();
             entity.setDeltaMovement(motionX, motionY, motionZ);
+            entity.hasImpulse = true;
         }
     }
 
