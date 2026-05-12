@@ -877,7 +877,7 @@ public class ReplayServer extends IntegratedServer {
                     this.fastForwarding = this.targetTick < realTargetTick;
 
                     this.runUpdates(booleanSupplier);
-                    if (this.replayPaused || this.targetTick == realTargetTick) {
+                    if (this.targetTick == realTargetTick) {
                         break;
                     } else {
                         this.targetTick += 1;
