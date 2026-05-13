@@ -366,12 +366,12 @@ public class ReplayServer extends IntegratedServer {
                 }
             }
 
-            @Override
-            public ServerStatsCounter getPlayerStats(Player player) {
-                File statsDir = this.getServer().getWorldPath(LevelResource.PLAYER_STATS_DIR).toFile();
-                File statsFile = new File(statsDir, player.getUUID() + ".json");
-                return new ServerStatsCounter(this.getServer(), statsFile);
-            }
+//            @Override
+//            public ServerStatsCounter getPlayerStats(Player player) {
+//                File statsDir = this.getServer().getWorldPath(LevelResource.PLAYER_STATS_DIR).toFile();
+//                File statsFile = new File(statsDir, player.getUUID() + ".json");
+//                return new ServerStatsCounter(this.getServer(), statsFile);
+//            }
         });
 
         super.initServer();
