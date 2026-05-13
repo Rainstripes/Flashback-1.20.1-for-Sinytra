@@ -1152,9 +1152,9 @@ public class ReplayGamePacketHandler implements ClientGamePacketListener {
         forward(entity, clientboundSetEntityMotionPacket);
 
         if (entity != null) {
-            double motionX = clientboundSetEntityMotionPacket.getXa();
-            double motionY = clientboundSetEntityMotionPacket.getYa();
-            double motionZ = clientboundSetEntityMotionPacket.getZa();
+            double motionX = clientboundSetEntityMotionPacket.getXa() / 8000.0;
+            double motionY = clientboundSetEntityMotionPacket.getYa() / 8000.0;
+            double motionZ = clientboundSetEntityMotionPacket.getZa() / 8000.0;
             entity.setDeltaMovement(motionX, motionY, motionZ);
             entity.hasImpulse = true;
         }
