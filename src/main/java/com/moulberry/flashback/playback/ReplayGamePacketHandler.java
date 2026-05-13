@@ -268,12 +268,16 @@ public class ReplayGamePacketHandler implements ClientGamePacketListener {
 
         ServerPlayer existingPlayer = this.replayServer.getPlayerList().getPlayer(serverPlayer.getUUID());
         if (existingPlayer != null) {
-            existingPlayer.discard();
+            existingPlayer.connection.disconnect(Component.empty());
         }
 
         Entity existingEntity = this.level().getEntity(serverPlayer.getId());
         if (existingEntity != null) {
-            existingEntity.discard();
+            if (existingEntity instanceof ServerPlayer existingPlayer2) {
+                existingPlayer2.connection.disconnect(Component.empty());
+            } else {
+                existingEntity.discard();
+            }
         }
 
         for (ReplayPlayer replayViewer : this.replayServer.getReplayViewers()) {
@@ -284,22 +288,19 @@ public class ReplayGamePacketHandler implements ClientGamePacketListener {
 
         Connection connection = new Connection(PacketFlow.SERVERBOUND) {
             @Override
-            public void send(Packet<?> packet, @Nullable PacketSendListener packetSendListener) {
-            }
+            public void send(Packet<?> packet, @Nullable PacketSendListener packetSendListener) {}
         };
         EmbeddedChannel embeddedChannel = new EmbeddedChannel(connection);
         serverPlayer.recreateFromPacket(addEntityPacket);
         try {
             this.replayServer.getPlayerList().placeNewPlayer(connection, serverPlayer);
         } catch (Exception e) {
-            this.replayServer.failedToSpawnPlayerWarning = true;
             Flashback.LOGGER.error("Failed to spawn player", e);
             return null;
         }
         serverPlayer.setGameMode(gameType);
 
         if (serverPlayer.isRemoved()) {
-            this.replayServer.failedToSpawnPlayerWarning = true;
             Flashback.LOGGER.error("ServerPlayer {} was removed while spawning. Incompatible mod?", serverPlayer.getUUID());
             return null;
         }
@@ -339,6 +340,8 @@ public class ReplayGamePacketHandler implements ClientGamePacketListener {
         if (existingEntity instanceof ExperienceOrb) {
             existingEntity.restoreFrom(entity);
             return;
+        } else if (existingEntity instanceof ServerPlayer serverPlayer) {
+            serverPlayer.connection.disconnect(Component.empty());
         } else if (existingEntity != null) {
             existingEntity.discard();
         }
@@ -1002,18 +1005,16 @@ public class ReplayGamePacketHandler implements ClientGamePacketListener {
 
     @Override
     public void handleRemoveEntities(ClientboundRemoveEntitiesPacket clientboundRemoveEntitiesPacket) {
-        IntList forwardRemoveUnknown = new IntArrayList();
         clientboundRemoveEntitiesPacket.getEntityIds().forEach(i -> {
             Entity entity = this.level().getEntity(i);
-            if (entity == null) {
-                forwardRemoveUnknown.add(i);
-            } else {
-                entity.discard();
+            if (entity != null) {
+                if (entity instanceof ServerPlayer serverPlayer) {
+                    serverPlayer.connection.disconnect(Component.empty());
+                } else {
+                    entity.discard();
+                }
             }
         });
-        if (!forwardRemoveUnknown.isEmpty()) {
-            forward(new ClientboundRemoveEntitiesPacket(forwardRemoveUnknown));
-        }
     }
 
     @Override

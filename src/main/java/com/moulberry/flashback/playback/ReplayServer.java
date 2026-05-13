@@ -757,7 +757,7 @@ public class ReplayServer extends IntegratedServer {
                 replayPlayer.lastFirstPersonDataUUID = null;
                 continue;
             }
-            player.discard();
+            player.connection.disconnect(Component.empty());
         }
         List<Entity> entities = new ArrayList<>();
         for (Entity entity : serverLevel.getAllEntities()) {

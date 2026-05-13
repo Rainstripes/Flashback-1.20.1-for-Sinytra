@@ -8,26 +8,14 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stat;
-import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.item.crafting.Recipe;
 
 import java.util.Collection;
-import java.util.UUID;
 
 public class FakePlayer extends ServerPlayer {
 
     public FakePlayer(MinecraftServer minecraftServer, ServerLevel serverLevel, GameProfile gameProfile) {
         super(minecraftServer, serverLevel, gameProfile);
-    }
-
-    @Override
-    public void remove(RemovalReason removalReason) {
-        if (removalReason == RemovalReason.DISCARDED && !this.hasDisconnected()) {
-            this.disconnect();
-            this.server.getPlayerList().remove(this);
-        } else {
-            super.remove(removalReason);
-        }
     }
 
     @Override
