@@ -157,11 +157,11 @@ public class PlayerListWindow {
                         lastUpdate = currentTime;
                     }
                 }
-                ImGui.sameLine();
-                if (ImGui.smallButton(I18n.get("flashback.spectate"))) {
-                    Minecraft.getInstance().getConnection().sendUnsignedCommand("spectate " + profile.getId());
-                    lastUpdate = currentTime;
-                }
+//                ImGui.sameLine();
+//                if (ImGui.smallButton(I18n.get("flashback.spectate"))) {
+//                    Minecraft.getInstance().getConnection().sendUnsignedCommand("spectate " + profile.getId());
+//                    lastUpdate = currentTime;
+//                }
                 ImGui.popID();
             }
 
