@@ -16,6 +16,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.biome.BiomeManager;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.UUID;
 
@@ -39,6 +40,7 @@ public class ReplayPlayer extends ServerPlayer {
 
     public ReplayPlayer(MinecraftServer minecraftServer, ServerLevel serverLevel, GameProfile gameProfile) {
         super(minecraftServer, serverLevel, gameProfile);
+        Arrays.fill(this.lastFirstPersonHotbarItems, ItemStack.EMPTY);
     }
 
     @Override
@@ -48,6 +50,25 @@ public class ReplayPlayer extends ServerPlayer {
         if (entity == null) {
             this.spectatingUuid = null;
         }
+    }
+
+    public void clearFirstPersonData() {
+        this.lastFirstPersonDataUUID = null;
+        this.lastFirstPersonSelectedSlot = -1;
+        Arrays.fill(this.lastFirstPersonHotbarItems, ItemStack.EMPTY);
+        this.lastFirstPersonExperienceProgress = 0.0f;
+        this.lastFirstPersonTotalExperience = 0;
+        this.lastFirstPersonExperienceLevel = 0;
+        this.lastFirstPersonFoodLevel = 0;
+        this.lastFirstPersonSaturationLevel = 0.0f;
+    }
+
+    public void stopSpectating() {
+        this.setCamera(null);
+        this.spectatingUuid = null;
+        this.spectatingUuidTickCount = 0;
+        this.forceRespectateTickCount = 0;
+        this.clearFirstPersonData();
     }
 
     @Override

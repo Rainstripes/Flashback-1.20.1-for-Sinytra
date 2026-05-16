@@ -870,6 +870,7 @@ public class ReplayGamePacketHandler implements ClientGamePacketListener {
                 localPlayer.teleportTo(newLevel, 0.0, 0.0, 0.0, Set.of(), 0.0f, 0.0f);
             }
             for (ReplayPlayer replayViewer : this.replayServer.getReplayViewers()) {
+                replayViewer.stopSpectating();
                 replayViewer.teleportTo(newLevel, replayViewer.getX(), replayViewer.getY(), replayViewer.getZ(), Set.of(),
                     replayViewer.getYRot(), replayViewer.getXRot());
                 replayViewer.followLocalPlayerNextTick = true;

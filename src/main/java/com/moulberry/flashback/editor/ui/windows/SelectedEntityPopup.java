@@ -70,11 +70,11 @@ public class SelectedEntityPopup {
             Minecraft.getInstance().cameraEntity.lookAt(EntityAnchorArgument.Anchor.EYES, entity.getEyePosition());
         }
         ImGui.sameLine();
-//        if (ImGui.button(I18n.get("flashback.spectate"))) {
-//            Minecraft.getInstance().player.connection.sendUnsignedCommand("spectate " + entity.getUUID());
-//            ImGui.closeCurrentPopup();
-//        }
-//        ImGui.sameLine();
+        if (ImGui.button(I18n.get("flashback.spectate"))) {
+            Flashback.spectateEntityInReplay(entity.getUUID());
+            ImGui.closeCurrentPopup();
+        }
+        ImGui.sameLine();
         if (ImGui.button(I18n.get("flashback.copy_uuid"))) {
             Minecraft.getInstance().keyboardHandler.setClipboard(entity.getUUID().toString());
             ReplayUI.setInfoOverlay("Copied '" + entity.getUUID() + "'");

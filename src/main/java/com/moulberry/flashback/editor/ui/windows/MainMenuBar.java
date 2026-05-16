@@ -70,6 +70,7 @@ public class MainMenuBar {
             }
             if (ImGui.menuItem(I18n.get("flashback.exit_replay") + "##ExitReplay")) {
                 Minecraft minecraft = Minecraft.getInstance();
+                Flashback.resetReplayCameraToPlayer();
                 if (minecraft.level != null) {
                     minecraft.level.disconnect();
                 }

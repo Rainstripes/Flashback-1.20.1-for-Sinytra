@@ -541,6 +541,77 @@ public class ReplayServer extends IntegratedServer {
         return this.replayViewers;
     }
 
+    @Nullable
+    public ReplayPlayer getReplayViewer(UUID uuid) {
+        for (ReplayPlayer replayViewer : this.replayViewers) {
+            if (replayViewer.getUUID().equals(uuid)) {
+                return replayViewer;
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    public Entity getEntityByUuid(UUID uuid) {
+        for (ServerLevel level : this.levels.values()) {
+            if (level == null) {
+                continue;
+            }
+            Entity entity = level.getEntity(uuid);
+            if (entity != null && !entity.isRemoved()) {
+                return entity;
+            }
+        }
+        return null;
+    }
+
+    public boolean spectateReplayViewer(UUID replayViewerUuid, @Nullable UUID targetUuid) {
+        ReplayPlayer replayViewer = this.getReplayViewer(replayViewerUuid);
+        if (replayViewer == null) {
+            return false;
+        }
+
+        replayViewer.followLocalPlayerNextTick = false;
+        if (targetUuid == null || targetUuid.equals(replayViewerUuid)) {
+            this.stopSpectating(replayViewer, false);
+            return true;
+        }
+
+        Entity targetEntity = this.getEntityByUuid(targetUuid);
+        if (targetEntity == null || targetEntity == replayViewer) {
+            this.stopSpectating(replayViewer, false);
+            return false;
+        }
+
+        this.stopSpectating(replayViewer, false);
+        if (replayViewer.level() != targetEntity.level()) {
+            replayViewer.teleportTo((ServerLevel) targetEntity.level(), targetEntity.getX(), targetEntity.getY(), targetEntity.getZ(),
+                targetEntity.getYRot(), targetEntity.getXRot());
+        }
+        replayViewer.setCamera(targetEntity);
+        replayViewer.spectatingUuid = targetEntity.getUUID();
+        replayViewer.forceRespectateTickCount = 5;
+        return true;
+    }
+
+    public boolean teleportReplayViewerTo(UUID replayViewerUuid, UUID targetUuid) {
+        ReplayPlayer replayViewer = this.getReplayViewer(replayViewerUuid);
+        if (replayViewer == null) {
+            return false;
+        }
+
+        Entity targetEntity = this.getEntityByUuid(targetUuid);
+        if (targetEntity == null || targetEntity == replayViewer) {
+            return false;
+        }
+
+        this.stopSpectating(replayViewer, false);
+        replayViewer.followLocalPlayerNextTick = false;
+        replayViewer.teleportTo((ServerLevel) targetEntity.level(), targetEntity.getX(), targetEntity.getY(), targetEntity.getZ(),
+            targetEntity.getYRot(), targetEntity.getXRot());
+        return true;
+    }
+
     public int getLocalPlayerId() {
         return this.gamePacketHandler.localPlayerId;
     }
@@ -754,7 +825,7 @@ public class ReplayServer extends IntegratedServer {
         }
         for (ServerPlayer player : new ArrayList<>(serverLevel.players())) {
             if (player instanceof ReplayPlayer replayPlayer) {
-                replayPlayer.lastFirstPersonDataUUID = null;
+                this.stopSpectating(replayPlayer, true);
                 continue;
             }
             player.connection.disconnect(Component.empty());
@@ -815,18 +886,13 @@ public class ReplayServer extends IntegratedServer {
         for (ServerPlayer player : this.getPlayerList().getPlayers()) {
             if (player instanceof ReplayPlayer replayPlayer) {
                 if (replayPlayer.isShiftKeyDown()) {
-                    replayPlayer.spectatingUuid = null;
-                    replayPlayer.spectatingUuidTickCount = 0;
-                    replayPlayer.forceRespectateTickCount = 0;
+                    this.stopSpectating(replayPlayer, false);
                 } else {
                     Entity cameraEntity = replayPlayer.getCamera();
-                    if (cameraEntity != null && cameraEntity != replayPlayer) {
+                    if (cameraEntity != null && cameraEntity != replayPlayer && !cameraEntity.isRemoved()) {
                         replayPlayer.spectatingUuid = cameraEntity.getUUID();
-                        replayPlayer.spectatingUuidTickCount = 20;
-                    } else if (replayPlayer.spectatingUuidTickCount > 0) {
-                        replayPlayer.spectatingUuidTickCount -= 1;
-                    } else {
-                        replayPlayer.spectatingUuid = null;
+                    } else if (replayPlayer.spectatingUuid != null) {
+                        this.stopSpectating(replayPlayer, false);
                     }
                 }
                 if (!replayPlayer.isSpectator()) {
@@ -899,7 +965,13 @@ public class ReplayServer extends IntegratedServer {
             // Ensure replay viewers are still spectating
             if (replayViewer.spectatingUuid != null) {
                 Entity camera = replayViewer.getCamera();
-                if (replayViewer.forceRespectateTickCount > 0 || camera == null || camera == replayViewer || camera.isRemoved()) {
+                if (camera != null && camera != replayViewer && !camera.isRemoved()) {
+                    if (camera.level() != replayViewer.level()) {
+                        this.stopSpectating(replayViewer, false);
+                    } else {
+                        replayViewer.spectatingUuid = camera.getUUID();
+                    }
+                } else {
                     Entity targetEntity = replayViewer.serverLevel().getEntity(replayViewer.spectatingUuid);
                     if (targetEntity != null && !targetEntity.isRemoved()) {
                         replayViewer.setCamera(null);
@@ -909,6 +981,8 @@ public class ReplayServer extends IntegratedServer {
                         if (replayViewer.forceRespectateTickCount == 0) {
                             replayViewer.forceRespectateTickCount = 5;
                         }
+                    } else {
+                        this.stopSpectating(replayViewer, false);
                     }
                 }
             }
@@ -973,7 +1047,7 @@ public class ReplayServer extends IntegratedServer {
                     }
                 }
             } else {
-                replayViewer.lastFirstPersonDataUUID = null;
+                replayViewer.clearFirstPersonData();
             }
         }
 
@@ -1435,6 +1509,7 @@ public class ReplayServer extends IntegratedServer {
             }
             if (shouldFollow) {
                 replayViewer.followLocalPlayerNextTick = false;
+                this.stopSpectating(replayViewer, false);
                 replayViewer.teleportTo(currentLevel, follow.getX(), follow.getY(), follow.getZ(),
                     follow.getYRot(), follow.getXRot());
             }
@@ -1476,6 +1551,10 @@ public class ReplayServer extends IntegratedServer {
 
     @Override
     public void stopServer() {
+        for (ReplayPlayer replayViewer : this.getReplayViewers()) {
+            this.stopSpectating(replayViewer, true);
+        }
+
         // Remove all levels
         for (ServerLevel level : this.levels.values()) {
             if (level == null) {
@@ -1503,6 +1582,13 @@ public class ReplayServer extends IntegratedServer {
 
         this.replayChunkCache.clear();
         this.playableChunksByStart.clear();
+    }
+
+    private void stopSpectating(ReplayPlayer replayViewer, boolean clearFollowFlag) {
+        replayViewer.stopSpectating();
+        if (clearFollowFlag) {
+            replayViewer.followLocalPlayerNextTick = false;
+        }
     }
 
     public void clearReplayTempFolder() {

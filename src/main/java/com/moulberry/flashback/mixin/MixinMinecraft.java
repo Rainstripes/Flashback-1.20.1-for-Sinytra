@@ -202,6 +202,7 @@ public abstract class MixinMinecraft implements MinecraftExt {
 
     @Inject(method = "clearLevel(Lnet/minecraft/client/gui/screens/Screen;)V", at = @At("HEAD"))
     public void disconnectHead(Screen screen, CallbackInfo ci) {
+        Flashback.resetReplayCameraToPlayer();
         try {
             if (Flashback.getConfig().recordingControls.automaticallyFinish && Flashback.RECORDER != null) {
                 Flashback.finishRecordingReplay();

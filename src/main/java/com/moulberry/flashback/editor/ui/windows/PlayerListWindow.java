@@ -142,7 +142,7 @@ public class PlayerListWindow {
                 ImGui.textUnformatted(profile.getName());
                 ImGui.sameLine();
                 if (ImGui.smallButton(I18n.get("flashback.tp"))) {
-                    Minecraft.getInstance().getConnection().sendUnsignedCommand("teleport " + profile.getId());
+                    Flashback.teleportToEntityInReplay(profile.getId());
                     lastUpdate = currentTime;
                 }
                 if (editorState != null) {
@@ -157,11 +157,11 @@ public class PlayerListWindow {
                         lastUpdate = currentTime;
                     }
                 }
-//                ImGui.sameLine();
-//                if (ImGui.smallButton(I18n.get("flashback.spectate"))) {
-//                    Minecraft.getInstance().getConnection().sendUnsignedCommand("spectate " + profile.getId());
-//                    lastUpdate = currentTime;
-//                }
+                ImGui.sameLine();
+                if (ImGui.smallButton(I18n.get("flashback.spectate"))) {
+                    Flashback.spectateEntityInReplay(profile.getId());
+                    lastUpdate = currentTime;
+                }
                 ImGui.popID();
             }
 

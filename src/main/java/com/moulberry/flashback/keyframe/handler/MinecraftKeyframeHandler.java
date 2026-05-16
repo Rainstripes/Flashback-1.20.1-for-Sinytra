@@ -1,5 +1,6 @@
 package com.moulberry.flashback.keyframe.handler;
 
+import com.moulberry.flashback.Flashback;
 import com.moulberry.flashback.keyframe.change.*;
 import com.moulberry.flashback.state.EditorState;
 import com.moulberry.flashback.state.EditorStateManager;
@@ -32,7 +33,7 @@ public record MinecraftKeyframeHandler(Minecraft minecraft) implements KeyframeH
         LocalPlayer player = this.minecraft.player;
         if (player != null) {
             if (this.minecraft.cameraEntity != this.minecraft.player) {
-                Minecraft.getInstance().getConnection().sendUnsignedCommand("spectate");
+                Flashback.spectateEntityInReplay(null);
             }
 
             player.moveTo(position.x, position.y, position.z, (float) yaw, (float) pitch);

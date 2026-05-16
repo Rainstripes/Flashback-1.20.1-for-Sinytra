@@ -1084,9 +1084,47 @@ public class Flashback implements ModInitializer, ClientModInitializer {
         return gameRules;
     }
 
+    public static void resetReplayCameraToPlayer() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player != null && minecraft.cameraEntity != null && minecraft.cameraEntity != minecraft.player) {
+            minecraft.setCameraEntity(minecraft.player);
+        }
+    }
+
+    public static boolean spectateEntityInReplay(@Nullable UUID entityUuid) {
+        ReplayServer replayServer = Flashback.getReplayServer();
+        Minecraft minecraft = Minecraft.getInstance();
+        if (replayServer == null || minecraft.player == null) {
+            return false;
+        }
+
+        if (entityUuid == null || entityUuid.equals(minecraft.player.getUUID())) {
+            resetReplayCameraToPlayer();
+        }
+
+        UUID replayViewerUuid = minecraft.player.getUUID();
+        replayServer.execute(() -> replayServer.spectateReplayViewer(replayViewerUuid, entityUuid));
+        return true;
+    }
+
+    public static boolean teleportToEntityInReplay(UUID entityUuid) {
+        ReplayServer replayServer = Flashback.getReplayServer();
+        Minecraft minecraft = Minecraft.getInstance();
+        if (replayServer == null || minecraft.player == null) {
+            return false;
+        }
+
+        resetReplayCameraToPlayer();
+
+        UUID replayViewerUuid = minecraft.player.getUUID();
+        replayServer.execute(() -> replayServer.teleportReplayViewerTo(replayViewerUuid, entityUuid));
+        return true;
+    }
+
     public static void openReplayWorld(Path path) {
         // Disconnect
         Minecraft minecraft = Minecraft.getInstance();
+        resetReplayCameraToPlayer();
         if (minecraft.level != null) {
             minecraft.level.disconnect();
         }
