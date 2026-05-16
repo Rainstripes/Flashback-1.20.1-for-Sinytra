@@ -1,8 +1,5 @@
 package com.moulberry.flashback.mixin.playback;
 
-import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
-import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
-import com.llamalad7.mixinextras.sugar.Local;
 import com.moulberry.flashback.visuals.AccurateEntityPositionHandler;
 import net.minecraft.client.Camera;
 import net.minecraft.util.Mth;

@@ -25,6 +25,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.GameType;
+import org.joml.Quaternionf;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -112,7 +113,8 @@ public abstract class MixinGameRenderer {
 
     @Inject(method = "renderLevel", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setup(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/world/entity/Entity;ZZF)V", shift = At.Shift.AFTER))
     public void renderLevel(float f, long l, PoseStack poseStack, CallbackInfo ci) {
-//        return CameraRotation.modifyViewQuaternion(.call(instance));
+        Quaternionf extraRotation = CameraRotation.getEffectsQuaternion().invert();
+        poseStack.mulPose(extraRotation);
     }
 
     @Inject(method = "tryTakeScreenshotIfNeeded", at = @At("HEAD"), cancellable = true)

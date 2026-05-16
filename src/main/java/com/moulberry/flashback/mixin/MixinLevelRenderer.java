@@ -17,6 +17,7 @@ import com.moulberry.flashback.playback.ReplayServer;
 import com.moulberry.flashback.state.EditorState;
 import com.moulberry.flashback.state.EditorStateManager;
 import com.moulberry.flashback.editor.ui.ReplayUI;
+import com.moulberry.flashback.visuals.CameraRotation;
 import com.moulberry.flashback.exporting.PerfectFrames;
 import com.moulberry.flashback.visuals.ReplayVisuals;
 import com.moulberry.flashback.visuals.ShaderManager;
@@ -64,7 +65,7 @@ public abstract class MixinLevelRenderer {
     @Inject(method = "renderLevel", at = @At("HEAD"))
     public void renderLevel(PoseStack poseStack, float f, long l, boolean bl, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f matrix4f, CallbackInfo ci) {
         ReplayUI.lastProjectionMatrix = matrix4f;
-        ReplayUI.lastViewQuaternion = camera.rotation();
+        ReplayUI.lastViewQuaternion = CameraRotation.modifyViewQuaternion(camera.rotation());
     }
 
     @Unique

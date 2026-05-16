@@ -101,6 +101,7 @@ public abstract class Keyframe {
                 case "camera_orbit" -> context.deserialize(json, CameraOrbitKeyframe.class);
                 case "track_entity" -> context.deserialize(json, TrackEntityKeyframe.class);
                 case "fov" -> context.deserialize(json, FOVKeyframe.class);
+                case "camera_roll" -> context.deserialize(json, CameraRollKeyframe.class);
                 case "tickrate" -> context.deserialize(json, TickrateKeyframe.class);
                 case "freeze" -> context.deserialize(json, FreezeKeyframe.class);
                 case "timelapse" -> context.deserialize(json, TimelapseKeyframe.class);
@@ -126,6 +127,9 @@ public abstract class Keyframe {
             } else if (src instanceof FOVKeyframe fovKeyframe) {
                 jsonObject = (JsonObject) context.serialize(fovKeyframe);
                 jsonObject.addProperty("type", "fov");
+            } else if (src instanceof CameraRollKeyframe cameraRollKeyframe) {
+                jsonObject = (JsonObject) context.serialize(cameraRollKeyframe);
+                jsonObject.addProperty("type", "camera_roll");
             } else if (src instanceof TickrateKeyframe tickrateKeyframe) {
                 jsonObject = (JsonObject) context.serialize(tickrateKeyframe);
                 jsonObject.addProperty("type", "tickrate");

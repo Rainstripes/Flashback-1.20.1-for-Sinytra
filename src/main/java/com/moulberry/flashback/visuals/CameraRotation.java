@@ -15,25 +15,25 @@ public class CameraRotation {
     private static float shakeTimeX = 0.0f;
     private static float lastShakeReplayTick = 0.0f;
 
-    public static Quaternionf modifyViewQuaternion(Quaternionf quaternionf) {
+    public static Quaternionf getEffectsQuaternion() {
         EditorState editorState = EditorStateManager.getCurrent();
         if (editorState == null) {
-            return quaternionf;
+            return new Quaternionf();
         }
 
         if (ReplayUI.isMovingCamera()) {
-            return quaternionf;
+            return new Quaternionf();
         }
 
         ReplayVisuals visuals = editorState.replayVisuals;
-        quaternionf = new Quaternionf(quaternionf);
+        Quaternionf quaternionf = new Quaternionf();
 
         if (visuals.overrideRoll) {
-            quaternionf = quaternionf.rotateZ((float) Math.toRadians(visuals.overrideRollAmount));
+            quaternionf.rotateZ((float) Math.toRadians(visuals.overrideRollAmount));
         }
 
         ReplayServer replayServer = Flashback.getReplayServer();
-        if (replayServer != null && visuals.overrideCameraShake && (Flashback.isExporting() || !replayServer.replayPaused)) {
+        if (replayServer != null && visuals.overrideCameraShake) {
             float tick = Flashback.isExporting() ? (float) Flashback.EXPORT_JOB.getCurrentTickDouble() : (float) replayServer.getPartialReplayTick();
             float speedFactor = 20.0f / replayServer.getDesiredTickRate(false);
 
@@ -55,9 +55,13 @@ public class CameraRotation {
 
             float yRot = fastNoiseLite.GetNoise(shakeTimeX, -10000) * 2*(float)Math.PI;
             float xRot = fastNoiseLite.GetNoise(-10000, shakeTimeY) * 2*(float)Math.PI;
-            quaternionf = quaternionf.rotateYXZ(yRot * xAmplitude/360, xRot * yAmplitude/360, 0);
+            quaternionf.rotateYXZ(yRot * xAmplitude/360, xRot * yAmplitude/360, 0);
         }
         return quaternionf;
+    }
+
+    public static Quaternionf modifyViewQuaternion(Quaternionf quaternionf) {
+        return new Quaternionf(quaternionf).mul(getEffectsQuaternion());
     }
 
 }

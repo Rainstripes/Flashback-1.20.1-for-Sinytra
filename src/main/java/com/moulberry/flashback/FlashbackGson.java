@@ -35,6 +35,7 @@ public class FlashbackGson {
             .registerTypeAdapter(CameraOrbitKeyframe.class, new CameraOrbitKeyframe.TypeAdapter())
             .registerTypeAdapter(TrackEntityKeyframe.class, new TrackEntityKeyframe.TypeAdapter())
             .registerTypeAdapter(FOVKeyframe.class, new FOVKeyframe.TypeAdapter())
+            .registerTypeAdapter(CameraRollKeyframe.class, new CameraRollKeyframe.TypeAdapter())
             .registerTypeAdapter(CameraShakeKeyframe.class, new CameraShakeKeyframe.TypeAdapter())
             .registerTypeAdapter(TickrateKeyframe.class, new TickrateKeyframe.TypeAdapter())
             .registerTypeAdapter(TimelapseKeyframe.class, new TimelapseKeyframe.TypeAdapter())

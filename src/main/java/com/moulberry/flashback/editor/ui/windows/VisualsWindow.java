@@ -4,6 +4,7 @@ import com.moulberry.flashback.Flashback;
 import com.moulberry.flashback.keyframe.Keyframe;
 import com.moulberry.flashback.keyframe.KeyframeType;
 import com.moulberry.flashback.keyframe.impl.CameraShakeKeyframe;
+import com.moulberry.flashback.keyframe.impl.CameraRollKeyframe;
 import com.moulberry.flashback.keyframe.impl.FOVKeyframe;
 import com.moulberry.flashback.keyframe.impl.TimeOfDayKeyframe;
 import com.moulberry.flashback.playback.ReplayServer;
@@ -294,6 +295,12 @@ public class VisualsWindow {
                 editorState.markDirty();
             }
             if (visuals.overrideRoll) {
+                ImGui.sameLine();
+                if (ImGui.smallButton("+")) {
+                    addKeyframe(editorState, replayServer, new CameraRollKeyframe(visuals.overrideRollAmount));
+                }
+                ImGuiHelper.tooltip(I18n.get("flashback.add_keyframe"));
+
                 floatBuffer[0] = visuals.overrideRollAmount;
                 if (ImGui.sliderFloat(I18n.get("flashback.roll"), floatBuffer, -180.0f, 180.0f, "%.1f")) {
                     visuals.overrideRollAmount = floatBuffer[0];

@@ -15,7 +15,7 @@ public record MinecraftKeyframeHandler(Minecraft minecraft) implements KeyframeH
 
     private static final Set<Class<? extends KeyframeChange>> supportedChanges = Set.of(
             KeyframeChangeCameraPosition.class, KeyframeChangeCameraPositionOrbit.class, KeyframeChangeTrackEntity.class,
-            KeyframeChangeFov.class, KeyframeChangeTimeOfDay.class, KeyframeChangeCameraShake.class
+            KeyframeChangeFov.class, KeyframeChangeTimeOfDay.class, KeyframeChangeCameraShake.class, KeyframeChangeRoll.class
     );
 
     @Override
@@ -40,13 +40,7 @@ public record MinecraftKeyframeHandler(Minecraft minecraft) implements KeyframeH
 
             EditorState editorState = EditorStateManager.getCurrent();
             if (editorState != null) {
-                if (roll > -0.01 && roll < 0.01) {
-                    editorState.replayVisuals.overrideRoll = false;
-                    editorState.replayVisuals.overrideRollAmount = 0.0f;
-                } else {
-                    editorState.replayVisuals.overrideRoll = true;
-                    editorState.replayVisuals.overrideRollAmount = (float) roll;
-                }
+                this.applyRollVisual(editorState, (float) roll);
             }
 
             player.setDeltaMovement(Vec3.ZERO);
@@ -74,6 +68,24 @@ public record MinecraftKeyframeHandler(Minecraft minecraft) implements KeyframeH
         EditorState editorState = EditorStateManager.getCurrent();
         if (editorState != null) {
             editorState.replayVisuals.setCameraShake(frequencyX, amplitudeX, frequencyY, amplitudeY);
+        }
+    }
+
+    @Override
+    public void applyRoll(float roll) {
+        EditorState editorState = EditorStateManager.getCurrent();
+        if (editorState != null) {
+            this.applyRollVisual(editorState, roll);
+        }
+    }
+
+    private void applyRollVisual(EditorState editorState, float roll) {
+        if (roll > -0.01f && roll < 0.01f) {
+            editorState.replayVisuals.overrideRoll = false;
+            editorState.replayVisuals.overrideRollAmount = 0.0f;
+        } else {
+            editorState.replayVisuals.overrideRoll = true;
+            editorState.replayVisuals.overrideRollAmount = roll;
         }
     }
 }
