@@ -93,6 +93,7 @@
     "record.MixinConnection",
     "record.MixinFFmpegFrameRecorder",
     "replay_server.MixinChunkGenerators",
+    "replay_server.MixinMinecraftServer",
     "replay_server.MixinPersistentEntitySectionManager",
     "replay_server.MixinPlayerList",
     "replay_server.MixinServerChunkCache",

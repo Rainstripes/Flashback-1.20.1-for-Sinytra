@@ -1555,21 +1555,17 @@ public class ReplayServer extends IntegratedServer {
             this.stopSpectating(replayViewer, true);
         }
 
-        // Remove all levels
-        for (ServerLevel level : this.levels.values()) {
+        for (ServerLevel level : new ArrayList<>(this.levels.values())) {
             if (level == null) {
                 continue;
             }
-            try {
-                level.close();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            level.noSave = true;
+            this.clearLevel(level);
         }
-        this.levels.clear();
 
         // Stop server
         super.stopServer();
+        this.levels.clear();
         TempFolderProvider.deleteTemp(TempFolderProvider.TempFolderType.SERVER, this.playbackUUID);
 
         if (this.playbackFileSystem != null) {
@@ -1615,6 +1611,9 @@ public class ReplayServer extends IntegratedServer {
 
     @Override
     public boolean isSingleplayerOwner(GameProfile gameProfile) {
-        return gameProfile.getName().equals(REPLAY_VIEWER_NAME) && gameProfile.getProperties().containsKey("IsReplayViewer");
+        if (gameProfile == null) {
+            return false;
+        }
+        return REPLAY_VIEWER_NAME.equals(gameProfile.getName());
     }
 }
