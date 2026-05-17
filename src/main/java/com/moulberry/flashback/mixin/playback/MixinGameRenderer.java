@@ -4,6 +4,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.moulberry.flashback.Flashback;
+import com.moulberry.flashback.compat.ExportRenderCompat;
 import com.moulberry.flashback.playback.ReplayTimer;
 import com.moulberry.flashback.state.EditorState;
 import com.moulberry.flashback.state.EditorStateManager;
@@ -60,6 +61,9 @@ public abstract class MixinGameRenderer {
             Flashback.RECORDER.trackPartialPosition(player, partialTick);
         }
         AccurateEntityPositionHandler.apply(Minecraft.getInstance().level, partialTick);
+        if (Flashback.isExporting()) {
+            ExportRenderCompat.beforeRender(partialTick);
+        }
     }
 
     @Inject(method = "render", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;clear(IZ)V", remap = false, ordinal = 0), cancellable = true)
