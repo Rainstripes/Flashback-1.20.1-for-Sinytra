@@ -11,6 +11,7 @@ import com.moulberry.flashback.Flashback;
 import com.moulberry.flashback.FreezeSlowdownFormula;
 import com.moulberry.flashback.Utils;
 import com.moulberry.flashback.combo_options.VideoContainer;
+import com.moulberry.flashback.compat.ExportRenderCompat;
 import com.moulberry.flashback.editor.ui.ReplayUI;
 import com.moulberry.flashback.editor.ui.windows.ExportDoneWindow;
 import com.moulberry.flashback.exporting.taskbar.TaskbarManager;
@@ -546,7 +547,12 @@ public class ExportJob {
 
         while (minecraft.pollTask()) {}
         this.updateClientFreeze(frozen);
-        minecraft.tick();
+        try {
+            ExportRenderCompat.beforeClientTick();
+            minecraft.tick();
+        } finally {
+            ExportRenderCompat.afterClientTick();
+        }
         this.updateSoundSource(minecraft);
 
         this.updateClientFreeze(frozen);
