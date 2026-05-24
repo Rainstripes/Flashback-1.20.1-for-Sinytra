@@ -3,6 +3,7 @@ package com.moulberry.flashback.mixin;
 import com.moulberry.flashback.Flashback;
 import com.moulberry.flashback.editor.ui.CustomImGuiImplGlfw;
 import com.moulberry.flashback.editor.ui.ReplayUI;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -15,6 +16,10 @@ public class MixinMouseHandler {
 
     @Inject(method = "isMouseGrabbed", at=@At("HEAD"), cancellable = true)
     public void isMouseGrabbed(CallbackInfoReturnable<Boolean> cir) {
+        if (Minecraft.getInstance().player == null) {
+            cir.setReturnValue(false);
+            return;
+        }
         if (ReplayUI.isActive()) {
             cir.setReturnValue(ReplayUI.imguiGlfw.getMouseHandledBy() == CustomImGuiImplGlfw.MouseHandledBy.GAME);
         } else if (Flashback.isExporting()) {
