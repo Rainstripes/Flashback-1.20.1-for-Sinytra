@@ -191,8 +191,18 @@ shadowJar {
 remapJar {
     dependsOn(shadowJar)
     input = shadowJar.getArchiveFile()
-}
 
+    doLast {
+        def finalJar = archiveFile.get().asFile
+        def resources = file("src/main/resources")
+
+        ant.zip(
+            destfile: finalJar,
+            update: true,
+            basedir: resources
+        )
+    }
+}
 
 // configure the maven publication
 publishing {
