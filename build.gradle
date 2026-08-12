@@ -183,7 +183,7 @@ shadowJar {
     configurations = [project.configurations.shadow]
     archiveBaseName = "flashback"
     destinationDirectory = file("${buildDir}/tmp/allJar")
-
+    from("src/main/resources")
     exclude("LICENSE")
     exclude("LICENSE.txt")
 }
